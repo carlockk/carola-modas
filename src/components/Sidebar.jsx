@@ -28,7 +28,7 @@ import { useTheme } from '@mui/material/styles';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LogoutIcon from '@mui/icons-material/LogoutOutlined';
 import { useAuth } from '../context/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCaja } from '../context/CajaContext';
 import { guardarLogoWebCliente, obtenerConfigSocial, obtenerLocales } from '../services/api';
 
@@ -49,13 +49,21 @@ import RestaurantIcon from '@mui/icons-material/Restaurant';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
+import MenuOpenIcon from '@mui/icons-material/MenuOpen';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { Brightness4, Brightness7 } from '@mui/icons-material';
 import { useThemeMode } from '../context/ThemeContext';
 import logo from '../possail.png';
 
-const drawerWidth = 320;
+const expandedDrawerWidth = 280;
 
-export default function Sidebar({ mobileOpen, toggleDrawer }) {
+export default function Sidebar({
+  mobileOpen,
+  toggleDrawer,
+  collapsed = false,
+  onToggleCollapsed,
+  drawerWidth = expandedDrawerWidth
+}) {
   const { usuario, logout, selectedLocal, seleccionarLocal } = useAuth();
   const theme = useTheme();
   const location = useLocation();
@@ -77,6 +85,7 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
   const [logoWebFile, setLogoWebFile] = useState(null);
   const [logoWebSaving, setLogoWebSaving] = useState(false);
   const [logoWebError, setLogoWebError] = useState('');
+  const drawerContentRef = useRef(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebarMenus');
@@ -98,6 +107,21 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
       toggleDrawer();
     }
   }, [location]);
+
+  useEffect(() => {
+    const root = drawerContentRef.current;
+    if (!root) return;
+
+    const buttons = root.querySelectorAll('.MuiListItemButton-root');
+    buttons.forEach((button) => {
+      const label = button.querySelector('.MuiListItemText-root')?.textContent?.trim() || '';
+      if (!isMobile && collapsed && label) {
+        button.setAttribute('title', label);
+      } else {
+        button.removeAttribute('title');
+      }
+    });
+  }, [collapsed, isMobile, openMenus]);
 
   useEffect(() => {
     const cargarLocales = async () => {
@@ -162,8 +186,10 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
 
   const drawerContent = (
     <Box
+      ref={drawerContentRef}
       sx={{
         width: drawerWidth,
+        minWidth: drawerWidth,
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
@@ -171,13 +197,69 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
         color: '#fff',
         borderRight: '1px solid #1f2937',
         overflowX: 'hidden',
+        transition: theme.transitions.create(['width', 'min-width'], {
+          duration: theme.transitions.duration.shortest
+        }),
+        '& .MuiListItemButton-root': !isMobile && collapsed
+          ? {
+              px: 0,
+              justifyContent: 'center',
+              position: 'relative',
+              overflow: 'visible'
+            }
+          : undefined,
+        '& .MuiListItemButton-root > .MuiBox-root': !isMobile && collapsed
+          ? {
+              mr: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }
+          : undefined,
+        '& .MuiListItemText-root': !isMobile && collapsed
+          ? {
+              display: 'none'
+            }
+          : undefined,
+        '& .MuiCollapse-root': !isMobile && collapsed
+          ? {
+              display: 'none'
+            }
+          : undefined,
+        '& .MuiListItemButton-root .MuiSvgIcon-root + .MuiSvgIcon-root': !isMobile && collapsed
+          ? {
+              display: 'none'
+            }
+          : undefined,
       }}
     >
       {/* Header */}
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: collapsed && !isMobile ? 1.25 : 2 }}>
+  {!isMobile && (
+    <Box sx={{ display: 'flex', justifyContent: collapsed ? 'center' : 'flex-end', mb: 1 }}>
+      <Tooltip title={collapsed ? 'Mostrar menú' : 'Ocultar menú'}>
+        <IconButton
+          size="small"
+          onClick={onToggleCollapsed}
+          sx={{ color: '#93c5fd', border: '1px solid #374151' }}
+        >
+          {collapsed ? <ChevronRightIcon fontSize="small" /> : <MenuOpenIcon fontSize="small" />}
+        </IconButton>
+      </Tooltip>
+    </Box>
+  )}
   <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1 }}>
-    <img src={logo} alt="POS System" style={{ width: '60%', height: '52px', maxWidth: 120 }} />
-    {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin') && !isMobile && (
+    <img
+      src={logo}
+      alt="POS System"
+      style={{
+        width: collapsed && !isMobile ? 40 : '58%',
+        height: collapsed && !isMobile ? 34 : 50,
+        maxWidth: 112,
+        objectFit: 'contain'
+      }}
+    />
+    {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin') && !isMobile && !collapsed && (
       <Tooltip title="Cambiar logo web cliente">
         <IconButton
           size="small"
@@ -189,15 +271,17 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
       </Tooltip>
     )}
   </Box>
-  <Typography sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+  {!collapsed && (
+  <Typography sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', fontSize: '0.9rem' }}>
     Sistema de punto de venta
   </Typography>
-  {usuario && (
+  )}
+  {usuario && !collapsed && (
     <Typography variant="body2" sx={{ mt: 1, color: '#9ca3af', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
       👤 {usuario.email} ({usuario.rol})
     </Typography>
   )}
-  {usuario?.local?.nombre && (
+  {usuario?.local?.nombre && !collapsed && (
     <Typography variant="body2" sx={{ mt: 0.5, color: '#9ca3af', display: 'flex', justifyContent: 'center', alignItems: 'center'}}>
       📍 {usuario.local.nombre}
     </Typography>
@@ -220,7 +304,7 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
       Cambiar logo web cliente
     </Typography>
   )}
-  {usuario?.rol === 'superadmin' && (
+  {usuario?.rol === 'superadmin' && !collapsed && (
     <Box sx={{ mt: 2 }}>
       <FormControl fullWidth size="small">
         <InputLabel id="locales-select-label" sx={{ color: '#e5e7eb' }}>
@@ -458,21 +542,35 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
       </List>
 
       {/* Cambiar tema + Cerrar sesión */}
-      <Box sx={{ px: 2, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="body2" sx={{ color: '#9ca3af' }}>
+      <Box
+        sx={{
+          px: collapsed && !isMobile ? 1 : 2,
+          py: 1,
+          display: 'flex',
+          justifyContent: collapsed && !isMobile ? 'center' : 'space-between',
+          alignItems: 'center'
+        }}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            color: '#9ca3af',
+            display: collapsed && !isMobile ? 'none' : 'block'
+          }}
+        >
           Tema
         </Typography>
         <Tooltip title="Cambiar tema">
-          <IconButton onClick={toggleTema} color="inherit" sx={{ mr: 2.5 }}>
+          <IconButton onClick={toggleTema} color="inherit" sx={{ mr: collapsed && !isMobile ? 0 : 2.5 }}>
             {modoOscuro ? <Brightness7 /> : <Brightness4 />}
           </IconButton>
         </Tooltip>
       </Box>
 
       {usuario && (
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: collapsed && !isMobile ? 1 : 2 }}>
           <Button
-            fullWidth
+            fullWidth={!collapsed || isMobile}
             color="error"
             variant="outlined"
             startIcon={<LogoutIcon />}
@@ -483,7 +581,12 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
             sx={{
               color: '#f87171',
               borderColor: '#f87171',
-              width: '90%;', // Aquí le quito 10px de ancho
+              minWidth: collapsed && !isMobile ? 44 : undefined,
+              width: collapsed && !isMobile ? 44 : '90%',
+              px: collapsed && !isMobile ? 0 : undefined,
+              '& .MuiButton-startIcon': {
+                mr: collapsed && !isMobile ? 0 : 1
+              },
               '&:hover': {
                 backgroundColor: '#7f1d1d',
                 color: '#fff',
@@ -491,7 +594,7 @@ export default function Sidebar({ mobileOpen, toggleDrawer }) {
               }
             }}
           >
-            Cerrar Sesión
+            {collapsed && !isMobile ? '' : 'Cerrar Sesión'}
           </Button>
         </Box>
       )}

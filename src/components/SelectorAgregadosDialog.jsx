@@ -2,17 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
-  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
-  Radio,
-  RadioGroup,
   Stack,
   Typography
 } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 const formatearPrecio = (valor) => {
   const numero = Number(valor);
@@ -152,14 +149,27 @@ export default function SelectorAgregadosDialog({
     });
   };
 
-  const getSeleccionadoRadio = (groupKey) =>
-    (
-      seleccionados.find((item) => {
-        const itemId = String(item.agregadoId || item._id || '');
-        const itemMeta = metaByAgregadoId.get(itemId);
-        return itemMeta?.groupKey === groupKey;
-      }) || {}
-    ).agregadoId || '';
+  const estaSeleccionado = (agregado) =>
+    seleccionados.some(
+      (item) =>
+        String(item.agregadoId || item._id || '') ===
+        String(agregado._id || agregado.agregadoId || '')
+    );
+
+  const manejarSeleccionAgregado = (grupo, agregado) => {
+    if (grupo.modoSeleccion === 'unico') {
+      seleccionarUnico(grupo.key, agregado);
+      return;
+    }
+    toggleAgregado(agregado);
+  };
+
+  const handleOpcionKeyDown = (event, grupo, agregado) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      manejarSeleccionAgregado(grupo, agregado);
+    }
+  };
 
   const totalExtras = seleccionados.reduce((acc, agg) => acc + (Number(agg.precio) || 0), 0);
   const selectedIds = new Set(
@@ -212,85 +222,73 @@ export default function SelectorAgregadosDialog({
                         {grupo.modoSeleccion === 'unico' ? '(elige uno)' : '(elige uno o varios)'}
                         {grupo.obligatorio ? ' - obligatorio' : ' - opcional'}
                       </Typography>
-                      {grupo.modoSeleccion === 'unico' ? (
-                        <RadioGroup
-                          value={String(getSeleccionadoRadio(grupo.key))}
-                          onChange={(event) => {
-                            const elegido = grupo.items.find(
-                              (agg) => String(agg._id || agg.agregadoId || '') === String(event.target.value)
-                            );
-                            if (elegido) {
-                              seleccionarUnico(grupo.key, elegido);
-                            }
-                          }}
-                        >
-                          <Stack spacing={1.25}>
-                            {grupo.items.map((agg) => (
-                              <Box
-                                key={agg._id || agg.agregadoId || agg.nombre}
-                                sx={{
-                                  px: 1.25,
-                                  py: 0.75,
-                                  borderRadius: 1.5,
-                                  border: '1px solid',
-                                  borderColor: 'divider'
-                                }}
-                              >
-                                <FormControlLabel
-                                  sx={{ width: '100%', m: 0 }}
-                                  value={String(agg._id || agg.agregadoId || '')}
-                                  control={<Radio />}
-                                  label={
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 1 }}>
-                                      <Typography>{agg.nombre}</Typography>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {formatearPrecio(agg.precio)}
-                                      </Typography>
-                                    </Box>
-                                  }
-                                />
+                      <Stack spacing={1.25}>
+                        {grupo.items.map((agg) => {
+                          const seleccionado = estaSeleccionado(agg);
+                          return (
+                            <Box
+                              key={agg._id || agg.agregadoId || agg.nombre}
+                              role={grupo.modoSeleccion === 'unico' ? 'radio' : 'checkbox'}
+                              aria-checked={seleccionado}
+                              tabIndex={0}
+                              onClick={() => manejarSeleccionAgregado(grupo, agg)}
+                              onKeyDown={(event) => handleOpcionKeyDown(event, grupo, agg)}
+                              sx={{
+                                px: 1.25,
+                                py: 1,
+                                minHeight: 52,
+                                borderRadius: 1,
+                                border: '1px solid',
+                                borderColor: seleccionado ? 'primary.main' : 'divider',
+                                backgroundColor: seleccionado ? 'primary.main' : 'background.paper',
+                                color: seleccionado ? 'primary.contrastText' : 'text.primary',
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 1,
+                                transition: 'transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease',
+                                '&:hover': {
+                                  transform: 'translateY(-1px)',
+                                  borderColor: 'primary.main'
+                                },
+                                '&:active': {
+                                  transform: 'scale(0.99)'
+                                },
+                                '&:focus-visible': {
+                                  outline: '3px solid',
+                                  outlineColor: 'primary.main',
+                                  outlineOffset: 2
+                                }
+                              }}
+                            >
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                                  {agg.nombre}
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    color: seleccionado ? 'inherit' : 'text.secondary',
+                                    opacity: seleccionado ? 0.88 : 1
+                                  }}
+                                >
+                                  {formatearPrecio(agg.precio)}
+                                </Typography>
                               </Box>
-                            ))}
-                          </Stack>
-                        </RadioGroup>
-                      ) : (
-                        <Stack spacing={1.25}>
-                          {grupo.items.map((agg) => {
-                            const seleccionado = seleccionados.some(
-                              (item) =>
-                                String(item.agregadoId || item._id || '') ===
-                                String(agg._id || agg.agregadoId || '')
-                            );
-                            return (
-                              <Box
-                                key={agg._id || agg.agregadoId || agg.nombre}
+                              <CheckCircleIcon
                                 sx={{
-                                  px: 1.25,
-                                  py: 0.75,
-                                  borderRadius: 1.5,
-                                  border: '1px solid',
-                                  borderColor: 'divider'
+                                  flexShrink: 0,
+                                  opacity: seleccionado ? 1 : 0,
+                                  color: seleccionado ? 'inherit' : 'transparent',
+                                  transition: 'opacity 0.15s ease'
                                 }}
-                              >
-                                <FormControlLabel
-                                  sx={{ width: '100%', m: 0 }}
-                                  control={
-                                    <Checkbox checked={seleccionado} onChange={() => toggleAgregado(agg)} />
-                                  }
-                                  label={
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: 1 }}>
-                                      <Typography>{agg.nombre}</Typography>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {formatearPrecio(agg.precio)}
-                                      </Typography>
-                                    </Box>
-                                  }
-                                />
-                              </Box>
-                            );
-                          })}
-                        </Stack>
-                      )}
+                              />
+                            </Box>
+                          );
+                        })}
+                      </Stack>
                     </Box>
                   ))}
                 </Stack>

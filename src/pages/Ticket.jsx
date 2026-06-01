@@ -179,13 +179,24 @@ export default function Ticket() {
           <hr />
           <Typography variant="h6">Total: ${venta.total.toLocaleString()}</Typography>
           <Typography variant="body2">Pago: {venta.tipo_pago}</Typography>
+          {Array.isArray(venta.pagos) && venta.pagos.length > 0 && (
+            <Box sx={{ mt: 0.5 }}>
+              {venta.pagos.map((pago, index) => (
+                <Typography key={`${pago.tipo}-${index}`} variant="body2">
+                  {pago.tipo}: ${Number(pago.monto || 0).toLocaleString()}
+                </Typography>
+              ))}
+            </Box>
+          )}
           {typeof venta.monto_recibido === 'number' && (
             <Typography variant="body2">Recibido: ${venta.monto_recibido.toLocaleString()}</Typography>
           )}
           {typeof venta.vuelto === 'number' && venta.vuelto >= 0 && (
             <Typography variant="body2">Vuelto: ${venta.vuelto.toLocaleString()}</Typography>
           )}
-          <Typography variant="body2">Pedido: {venta.tipo_pedido}</Typography>
+          {venta.tipo_pedido && venta.tipo_pedido !== '—' && (
+            <Typography variant="body2">Pedido: {venta.tipo_pedido}</Typography>
+          )}
           {(venta.cobrador_nombre || venta?.usuario?.nombre || venta?.usuario?.email) && (
             <Typography variant="body2">
               Cobrado por: {venta.cobrador_nombre || venta?.usuario?.nombre || venta?.usuario?.email}

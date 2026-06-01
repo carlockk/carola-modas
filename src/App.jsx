@@ -36,13 +36,15 @@ import Restaurante from './pages/Restaurante';
 import CheckoutResult from './pages/CheckoutResult';
 import { LOCAL_REQUIRED_EVENT } from './services/api';
 
-const drawerWidth = 320;
+const drawerWidth = 280;
+const collapsedDrawerWidth = 72;
 
 export default function App() {
   const { usuario } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [localNoticeOpen, setLocalNoticeOpen] = useState(false);
   const [localNoticeMessage, setLocalNoticeMessage] = useState('');
   const location = useLocation();
@@ -53,6 +55,7 @@ export default function App() {
   const rutaInicio = esMesero ? '/restaurante' : '/';
 
   const toggleDrawer = () => setMobileOpen(!mobileOpen);
+  const activeDrawerWidth = !isMobile && sidebarCollapsed ? collapsedDrawerWidth : drawerWidth;
 
   useEffect(() => {
     const handler = (event) => {
@@ -84,7 +87,13 @@ export default function App() {
         )}
 
         {!isLoginRoute && (
-          <Sidebar mobileOpen={mobileOpen} toggleDrawer={toggleDrawer} />
+          <Sidebar
+            mobileOpen={mobileOpen}
+            toggleDrawer={toggleDrawer}
+            collapsed={!isMobile && sidebarCollapsed}
+            onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
+            drawerWidth={activeDrawerWidth}
+          />
         )}
 
         {!isLoginRoute && !esMesero && <PedidosWebWatcher />}
@@ -105,7 +114,16 @@ export default function App() {
                   flexGrow: 1,
                   p: 0.25,
                   mt: isMobile ? 7 : 0,
-                  width: { sm: `calc(100% - ${drawerWidth}px)` }
+                  width: {
+                    xs: '100%',
+                    md: `calc(100% - ${activeDrawerWidth}px)`
+                  },
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  overflowX: 'hidden',
+                  transition: theme.transitions.create('width', {
+                    duration: theme.transitions.duration.shortest
+                  })
                 }
           }
         >

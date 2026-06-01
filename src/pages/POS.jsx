@@ -28,7 +28,6 @@ import { useCarrito } from '../context/CarritoContext';
 import { useCaja } from '../context/CajaContext';
 import { useAuth } from '../context/AuthContext';
 
-import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import ShoppingCartIcon from '@mui/icons-material/PointOfSale';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import StorefrontIcon from '@mui/icons-material/Storefront';
@@ -43,6 +42,7 @@ import SelectorAgregadosDialog from '../components/SelectorAgregadosDialog';
 const BASE_URL = FILES_BASE || (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000');
 const MIN_STOCK_ALERT = 3;
 const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
+const DESKTOP_CART_WIDTH = 380;
 
 const normalizeCategoryKey = (value) =>
   String(value || '')
@@ -202,7 +202,7 @@ export default function POS() {
   const stockOkColor =
     theme.palette.mode === 'dark' ? '#a7f3d0' : '#15803d';
 
-  const { agregarProducto, cargarCarrito } = useCarrito();
+  const { carrito, agregarProducto, cargarCarrito } = useCarrito();
   const { cajaAbierta, cajaVerificada } = useCaja();
   const navigate = useNavigate();
   const location = useLocation();
@@ -228,10 +228,11 @@ export default function POS() {
 
   const obtenerStockControlado = (valor) => {
     const numero = normalizarNumero(valor);
-    return numero !== null && numero > 0 ? numero : null;
+    return numero !== null && numero >= 0 ? numero : null;
   };
 
-  const varianteEstaAgotada = (variante) => Boolean(variante?.agotado);
+  const varianteEstaAgotada = (variante) =>
+    Boolean(variante?.agotado) || obtenerStockControlado(variante?.stock) === 0;
 
   const varianteDisponible = (variante) => !varianteEstaAgotada(variante);
 
@@ -345,6 +346,12 @@ export default function POS() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  const abrirCarritoPersistente = () => {
+    if (!isMobile) {
+      setOpenCarrito(true);
+    }
+  };
+
   const handleAgregar = (producto) => {
     if (tieneVariantes(producto)) {
       const variantesConStock = producto.variantes.filter((v) => varianteDisponible(v));
@@ -366,7 +373,7 @@ export default function POS() {
     }
 
     agregarProducto(producto);
-    setOpenCarrito(true);
+    abrirCarritoPersistente();
   };
 
   const handleSeleccionVariante = (variante) => {
@@ -383,7 +390,7 @@ export default function POS() {
 
     agregarProducto(productoConVariantes, variante);
     setProductoConVariantes(null);
-    setOpenCarrito(true);
+    abrirCarritoPersistente();
   };
 
   const handleConfirmarAgregados = (agregadosSeleccionados = []) => {
@@ -394,7 +401,26 @@ export default function POS() {
       { agregados: agregadosSeleccionados }
     );
     setProductoConAgregados(null);
-    setOpenCarrito(true);
+    abrirCarritoPersistente();
+  };
+
+  const obtenerCantidadEnCarrito = (productoId) =>
+    carrito.reduce(
+      (total, item) => total + (String(item._id) === String(productoId) ? Number(item.cantidad) || 0 : 0),
+      0
+    );
+
+  const cantidadTotalCarrito = carrito.reduce(
+    (total, item) => total + (Number(item.cantidad) || 0),
+    0
+  );
+
+  const handleTarjetaKeyDown = (event, producto, deshabilitado) => {
+    if (deshabilitado) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleAgregar(producto);
+    }
   };
 
   const handleDragEnd = (result) => {
@@ -563,7 +589,19 @@ export default function POS() {
   }
 
   return (
-    <Box sx={{ mt: 2, px: 2 }}>
+    <Box
+      sx={{
+        mt: 2,
+        px: 2,
+        pr: {
+          xs: 2,
+          sm: openCarrito ? `${DESKTOP_CART_WIDTH + 16}px` : 2
+        },
+        transition: theme.transitions.create('padding-right', {
+          duration: theme.transitions.duration.shortest
+        })
+      }}
+    >
       {/* Encabezado */}
       <Box
         sx={{
@@ -621,9 +659,9 @@ export default function POS() {
           </Button>
           <Button
             variant="outlined"
-            onClick={() => setOpenCarrito(true)}
+            onClick={() => setOpenCarrito((prev) => !prev)}
           >
-            Ver Carrito
+            {openCarrito ? 'Ocultar Carrito' : 'Ver Carrito'}
           </Button>
         </Stack>
       </Box>
@@ -666,10 +704,19 @@ export default function POS() {
                 : prod.imagen_url || '';
 
               const hayVariantes = tieneVariantes(prod);
+              const cantidadEnCarrito = obtenerCantidadEnCarrito(prod._id);
 
               return (
                 <Box
                   key={prod._id}
+                  role="button"
+                  tabIndex={agotado ? -1 : 0}
+                  aria-disabled={agotado}
+                  aria-label={`${agotado ? 'Agotado' : 'Agregar'} ${prod.nombre}`}
+                  onClick={() => {
+                    if (!agotado) handleAgregar(prod);
+                  }}
+                  onKeyDown={(event) => handleTarjetaKeyDown(event, prod, agotado)}
                 sx={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -679,14 +726,24 @@ export default function POS() {
                   boxShadow:
                     '0 8px 24px rgba(15,23,42,0.12)',
                   p: 1.25,
-                  minHeight: 256,
+                  minHeight: hayVariantes ? 256 : 220,
+                  cursor: agotado ? 'not-allowed' : 'pointer',
+                  userSelect: 'none',
                   transition:
                     'transform 0.2s ease, border 0.2s ease, box-shadow 0.2s ease',
+                  '&:focus-visible': {
+                    outline: `3px solid ${theme.palette.primary.main}`,
+                    outlineOffset: 2
+                  },
                   '&:hover': {
-                    transform: 'translateY(-4px)',
-                    borderColor: theme.palette.primary.main,
+                    transform: agotado ? 'none' : 'translateY(-4px)',
+                    borderColor: agotado ? cardBorderColor : theme.palette.primary.main,
                     boxShadow:
-                      '0 16px 32px rgba(15,23,42,0.18)'
+                      agotado ? '0 8px 24px rgba(15,23,42,0.12)' : '0 16px 32px rgba(15,23,42,0.18)'
+                  },
+                  '&:active': {
+                    transform: agotado ? 'none' : 'translateY(-1px) scale(0.99)',
+                    borderColor: agotado ? cardBorderColor : theme.palette.primary.dark
                   }
                 }}
               >
@@ -706,62 +763,19 @@ export default function POS() {
                 }}
               >
                 {imagenSrc ? (
-                  isMobile ? (
-                    <Box
-                      component="img"
-                      src={imagenSrc}
-                      alt={prod.nombre}
-                      sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        filter: agotado ? 'grayscale(1)' : 'none'
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(imagenSrc, '_blank', 'noopener,noreferrer');
-                      }}
-                    />
-                  ) : (
-                    <Tooltip
-                      title={
-                        <Box
-                          component="img"
-                          src={imagenSrc}
-                          alt={prod.nombre}
-                          sx={{ width: 240, height: 240, objectFit: 'cover' }}
-                        />
-                      }
-                      placement="top"
-                      PopperProps={{
-                        modifiers: [
-                          {
-                            name: 'offset',
-                            options: {
-                              offset: [0, -40]
-                            }
-                          }
-                        ]
-                      }}
-                    >
-                      <Box
-                        component="img"
-                        src={imagenSrc}
-                        alt={prod.nombre}
-                        sx={{
-                          position: 'absolute',
-                          inset: 0,
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          filter: agotado ? 'grayscale(1)' : 'none'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </Tooltip>
-                  )
+                  <Box
+                    component="img"
+                    src={imagenSrc}
+                    alt={prod.nombre}
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      filter: agotado ? 'grayscale(1)' : 'none'
+                    }}
+                  />
                 ) : (
                   <Stack
                     position="absolute"
@@ -797,6 +811,30 @@ export default function POS() {
                     }}
                   >
                     AGOTADO
+                  </Box>
+                )}
+
+                {cantidadEnCarrito > 0 && !agotado && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      minWidth: 34,
+                      height: 28,
+                      px: 1,
+                      borderRadius: 999,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: theme.palette.success.main,
+                      color: theme.palette.success.contrastText,
+                      fontWeight: 800,
+                      fontSize: '0.8rem',
+                      boxShadow: '0 8px 18px rgba(15,23,42,0.22)'
+                    }}
+                  >
+                    x{cantidadEnCarrito}
                   </Box>
                 )}
               </Box>
@@ -929,40 +967,36 @@ export default function POS() {
                   </Stack>
                 )}
               </Box>
-
-              <Button
-                variant="contained"
-                startIcon={
-                  <AddShoppingCartIcon fontSize="small" />
-                }
-                disabled={agotado}
-                onClick={() => handleAgregar(prod)}
-                sx={{
-                  mt: 1.25,
-                  borderRadius: 1.25,
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: '0.78rem',
-                  minHeight: 32,
-                  background: agotado
-                    ? 'rgba(148,163,184,0.3)'
-                    : 'linear-gradient(135deg, #1e40af, #2563eb)',
-                  color: '#fff',
-                  '&:hover': {
-                    background: agotado
-                      ? 'rgba(148,163,184,0.4)'
-                      : 'linear-gradient(135deg, #1d4ed8, #1e3a8a)'
-                  }
-                }}
-              >
-                {hayVariantes ? 'Elegir variante' : 'Agregar'}
-              </Button>
             </Box>
               );
             })}
           </Fragment>
         ))}
       </Box>
+
+      <Button
+        variant="contained"
+        startIcon={<ShoppingCartIcon />}
+        onClick={() => setOpenCarrito((prev) => !prev)}
+        sx={{
+          position: 'fixed',
+          right: {
+            xs: 16,
+            sm: openCarrito ? DESKTOP_CART_WIDTH + 16 : 16
+          },
+          bottom: 20,
+          zIndex: 1500,
+          borderRadius: 999,
+          px: 2,
+          minHeight: 44,
+          fontWeight: 800,
+          textTransform: 'none',
+          boxShadow: '0 12px 28px rgba(15,23,42,0.28)'
+        }}
+      >
+        {openCarrito ? 'Ocultar' : 'Carrito'}
+        {cantidadTotalCarrito > 0 ? ` (${cantidadTotalCarrito})` : ''}
+      </Button>
 
       {/* Botón flotante derecho */}
       <Fab
@@ -1077,6 +1111,7 @@ export default function POS() {
         open={openCarrito}
         onClose={() => setOpenCarrito(false)}
         onVentaCompletada={cargarDatos}
+        desktopWidth={DESKTOP_CART_WIDTH}
       />
       <SelectorVariantes
         open={Boolean(productoConVariantes)}

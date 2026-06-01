@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
+  FormControlLabel,
   Paper,
   Stack,
+  Switch,
   TextField,
   Typography,
   Alert
@@ -15,6 +17,7 @@ export default function ConfigRecibo() {
   const [form, setForm] = useState({
     nombre: '',
     pie: '',
+    imprimir_auto: true,
     copias_auto: 1,
     logo_url: '',
     remove_logo: false
@@ -34,6 +37,7 @@ export default function ConfigRecibo() {
         setForm({
           nombre: data.nombre || 'Ticket de Venta',
           pie: data.pie || '',
+          imprimir_auto: data.imprimir_auto !== false,
           copias_auto: data.copias_auto ?? 1,
           logo_url: data.logo_url || '',
           remove_logo: false
@@ -79,6 +83,7 @@ export default function ConfigRecibo() {
       const data = new FormData();
       data.append('nombre', form.nombre);
       data.append('pie', form.pie);
+      data.append('imprimir_auto', form.imprimir_auto ? 'true' : 'false');
       data.append('copias_auto', form.copias_auto);
       data.append('remove_logo', form.remove_logo ? 'true' : 'false');
       if (logoFile) {
@@ -90,6 +95,7 @@ export default function ConfigRecibo() {
         ...prev,
         nombre: saved.nombre || prev.nombre,
         pie: saved.pie || '',
+        imprimir_auto: saved.imprimir_auto !== false,
         copias_auto: saved.copias_auto ?? prev.copias_auto,
         logo_url: saved.logo_url || '',
         remove_logo: false
@@ -145,6 +151,15 @@ export default function ConfigRecibo() {
             fullWidth
             multiline
             minRows={2}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={form.imprimir_auto !== false}
+                onChange={(e) => setForm((prev) => ({ ...prev, imprimir_auto: e.target.checked }))}
+              />
+            }
+            label="Imprimir automaticamente al vender"
           />
           <TextField
             label="Copias automaticas"

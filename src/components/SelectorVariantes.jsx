@@ -15,6 +15,12 @@ const formatearPrecio = (valor, fallback) => {
   return `$${numero.toLocaleString()}`;
 };
 
+const normalizarStock = (valor) => {
+  if (valor === null || valor === undefined || valor === '') return null;
+  const numero = Number(valor);
+  return Number.isFinite(numero) && numero >= 0 ? numero : null;
+};
+
 export default function SelectorVariantes({ open, onClose, producto, onSelect }) {
   const variantes = producto?.variantes || [];
 
@@ -27,16 +33,56 @@ export default function SelectorVariantes({ open, onClose, producto, onSelect })
         ) : (
           <Stack spacing={2}>
             {variantes.map((vari) => {
-              const stock = Number(vari.stock);
-              const stockControlado = Number.isFinite(stock) && stock > 0;
-              const agotado = Boolean(vari.agotado);
+              const stock = normalizarStock(vari.stock);
+              const stockControlado = stock !== null;
+              const agotado = Boolean(vari.agotado) || stock === 0;
               const atributos = [vari.color, vari.talla].filter(Boolean).join(' / ') || 'Sin atributos';
               const sku = vari.sku || 'Sin SKU';
 
               return (
                 <Paper
                   key={vari._id || `${vari.nombre}-${atributos}`}
-                  sx={{ p: 2, borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}
+                  role="button"
+                  tabIndex={agotado ? -1 : 0}
+                  aria-disabled={agotado}
+                  aria-label={`${agotado ? 'Variante agotada' : 'Agregar variante'} ${vari.nombre}`}
+                  onClick={() => {
+                    if (!agotado) onSelect?.(vari);
+                  }}
+                  onKeyDown={(event) => {
+                    if (agotado) return;
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onSelect?.(vari);
+                    }
+                  }}
+                  sx={{
+                    p: 2,
+                    borderRadius: 1,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 2,
+                    cursor: agotado ? 'not-allowed' : 'pointer',
+                    opacity: agotado ? 0.58 : 1,
+                    border: '1px solid',
+                    borderColor: agotado ? 'divider' : 'transparent',
+                    transition: 'transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease',
+                    '&:hover': {
+                      transform: agotado ? 'none' : 'translateY(-1px)',
+                      borderColor: agotado ? 'divider' : 'primary.main',
+                      boxShadow: agotado ? 'none' : 3
+                    },
+                    '&:active': {
+                      transform: agotado ? 'none' : 'scale(0.99)'
+                    },
+                    '&:focus-visible': {
+                      outline: '3px solid',
+                      outlineColor: 'primary.main',
+                      outlineOffset: 2
+                    }
+                  }}
                 >
                   <Box>
                     <Typography fontWeight={600}>{vari.nombre}</Typography>
@@ -53,13 +99,6 @@ export default function SelectorVariantes({ open, onClose, producto, onSelect })
                       Precio: {formatearPrecio(vari.precio, producto?.precio)}
                     </Typography>
                   </Box>
-                  <Button
-                    variant="contained"
-                    disabled={agotado}
-                    onClick={() => onSelect?.(vari)}
-                  >
-                    {agotado ? 'Agotado' : 'Agregar'}
-                  </Button>
                 </Paper>
               );
             })}

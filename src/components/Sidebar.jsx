@@ -35,8 +35,6 @@ import { guardarLogoWebCliente, obtenerConfigSocial, obtenerLocales } from '../s
 // Icons
 import DashboardIcon from '@mui/icons-material/DashboardOutlined';
 import InventoryIcon from '@mui/icons-material/Inventory2Outlined';
-import InventoryOutlinedIcon from '@mui/icons-material/InventoryOutlined';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSaleOutlined';
 import HistoryIcon from '@mui/icons-material/HistoryOutlined';
 import StoreIcon from '@mui/icons-material/StoreOutlined';
@@ -45,7 +43,6 @@ import PeopleAltIcon from '@mui/icons-material/PeopleAltOutlined';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import LanguageIcon from '@mui/icons-material/Language';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import RestaurantIcon from '@mui/icons-material/Restaurant';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -372,14 +369,7 @@ export default function Sidebar({
           }
         }}
       >
-        {esMesero ? (
-          <ListItem disablePadding>
-            <ListItemButton component={Link} to="/restaurante" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
-              <Box sx={{ mr: 2 }}><RestaurantIcon /></Box>
-              <ListItemText primary="Restaurante" />
-            </ListItemButton>
-          </ListItem>
-        ) : (
+        {esMesero ? null : (
           <>
         <ListItem disablePadding>
           <ListItemButton component={Link} to="/dashboard" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
@@ -395,25 +385,6 @@ export default function Sidebar({
             <ListItemText primary="Productos" />
           </ListItemButton>
         </ListItem>
-
-        {/* Insumos */}
-        {usuario && (
-          <ListItem disablePadding>
-            <ListItemButton component={Link} to="/insumos" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
-              <Box sx={{ mr: 2 }}><InventoryOutlinedIcon /></Box>
-              <ListItemText primary="Insumos" />
-            </ListItemButton>
-          </ListItem>
-        )}
-
-        {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin' || usuario?.rol === 'cajero') && (
-          <ListItem disablePadding>
-            <ListItemButton component={Link} to="/agregados" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
-              <Box sx={{ mr: 2 }}><AddCircleOutlineIcon /></Box>
-              <ListItemText primary="Agregados" />
-            </ListItemButton>
-          </ListItem>
-        )}
 
         {/* Categorias */}
         {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin') && (
@@ -446,15 +417,6 @@ export default function Sidebar({
         )}
 
 
-        {/* Configuracion social */}
-        {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin') && (
-          <ListItem disablePadding>
-            <ListItemButton component={Link} to="/social" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
-              <Box sx={{ mr: 2 }}><LanguageIcon /></Box>
-              <ListItemText primary="Social" />
-            </ListItemButton>
-          </ListItem>
-        )}
         {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin') && (
           <ListItem disablePadding>
             <ListItemButton component={Link} to="/horario-tienda" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
@@ -468,13 +430,6 @@ export default function Sidebar({
           <ListItemButton component={Link} to="/pos" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
             <Box sx={{ mr: 2 }}><PointOfSaleIcon /></Box>
             <ListItemText primary="POS" />
-          </ListItemButton>
-        </ListItem>
-
-        <ListItem disablePadding>
-          <ListItemButton component={Link} to="/restaurante" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
-            <Box sx={{ mr: 2 }}><RestaurantIcon /></Box>
-            <ListItemText primary="Restaurante" />
           </ListItemButton>
         </ListItem>
 

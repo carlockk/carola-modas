@@ -7,7 +7,8 @@ import {
   Stack,
   Card,
   CardContent,
-  Divider
+  Divider,
+  Alert
 } from '@mui/material';
 import {
   abrirCaja,
@@ -30,11 +31,12 @@ export default function Caja() {
   const [comandaSeleccionada, setComandaSeleccionada] = useState(null);
   const [rendicionesPendientes, setRendicionesPendientes] = useState([]);
   const navigate = useNavigate();
-  const { usuario } = useAuth();
+  const { usuario, selectedLocal } = useAuth();
   const { cajaAbierta, setCajaAbierta } = useCaja();
+  const superadminSinLocal = usuario?.rol === 'superadmin' && !selectedLocal?._id;
 
   const cargarPendientes = async () => {
-    if (!cajaAbierta) {
+    if (!cajaAbierta || superadminSinLocal) {
       setPendientes([]);
       setRendicionesPendientes([]);
       return;
@@ -57,9 +59,14 @@ export default function Caja() {
 
   useEffect(() => {
     cargarPendientes();
-  }, [cajaAbierta]);
+  }, [cajaAbierta, superadminSinLocal, selectedLocal?._id]);
 
   const handleAbrir = async () => {
+    if (superadminSinLocal) {
+      alert('Debes seleccionar un local antes de abrir caja.');
+      return;
+    }
+
     const monto = parseFloat(montoInicial);
     if (isNaN(monto) || monto <= 0) {
       alert('❌ Ingresa un monto válido.');
@@ -79,6 +86,11 @@ export default function Caja() {
   };
 
   const handleCerrar = async () => {
+    if (superadminSinLocal) {
+      alert('Debes seleccionar un local antes de cerrar caja.');
+      return;
+    }
+
     try {
       const res = await cerrarCaja({ nombre: usuario?.nombre });
       setCajaAbierta(false);
@@ -126,6 +138,11 @@ export default function Caja() {
   return (
     <Box sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
       <Typography variant="h5">💰 Caja</Typography>
+      {superadminSinLocal && (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          Selecciona primero un local activo en el menú lateral para abrir o cerrar caja.
+        </Alert>
+      )}
       <TextField
         fullWidth
         label="Monto Inicial"
@@ -133,13 +150,13 @@ export default function Caja() {
         value={montoInicial}
         onChange={(e) => setMontoInicial(e.target.value)}
         sx={{ my: 2 }}
-        disabled={cajaAbierta}
+        disabled={cajaAbierta || superadminSinLocal}
       />
       <Button
         variant="contained"
         color="primary"
         onClick={handleAbrir}
-        disabled={cajaAbierta}
+        disabled={cajaAbierta || superadminSinLocal}
       >
         Abrir Caja
       </Button>
@@ -148,6 +165,7 @@ export default function Caja() {
         color="error"
         onClick={handleCerrar}
         sx={{ ml: 2 }}
+        disabled={superadminSinLocal}
       >
         Cerrar Caja
       </Button>
@@ -156,12 +174,16 @@ export default function Caja() {
 
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
         <Typography variant="h6">Comandas pendientes de cobro</Typography>
-        <Button size="small" variant="outlined" onClick={cargarPendientes} disabled={!cajaAbierta || cargandoPendientes}>
+        <Button size="small" variant="outlined" onClick={cargarPendientes} disabled={!cajaAbierta || cargandoPendientes || superadminSinLocal}>
           {cargandoPendientes ? 'Actualizando...' : 'Actualizar'}
         </Button>
       </Stack>
 
-      {!cajaAbierta ? (
+      {superadminSinLocal ? (
+        <Typography variant="body2" color="text.secondary">
+          Selecciona un local para ver comandas pendientes.
+        </Typography>
+      ) : !cajaAbierta ? (
         <Typography variant="body2" color="text.secondary">
           Abre la caja para ver y cobrar comandas de restaurante.
         </Typography>
@@ -208,7 +230,11 @@ export default function Caja() {
 
       <Divider sx={{ my: 3 }} />
       <Typography variant="h6" sx={{ mb: 1 }}>Rendiciones de efectivo pendientes</Typography>
-      {!cajaAbierta ? (
+      {superadminSinLocal ? (
+        <Typography variant="body2" color="text.secondary">
+          Selecciona un local para gestionar rendiciones.
+        </Typography>
+      ) : !cajaAbierta ? (
         <Typography variant="body2" color="text.secondary">
           Abre la caja para gestionar rendiciones en efectivo.
         </Typography>

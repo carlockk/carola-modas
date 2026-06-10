@@ -26,6 +26,27 @@ const normalizarAgregados = (agregados) => {
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 };
 
+const normalizarVariantes = (variantes) => {
+  if (!Array.isArray(variantes)) return [];
+  return variantes
+    .map((variante) => {
+      if (!variante) return null;
+      const nombre = (variante.nombre || '').toString().trim();
+      if (!nombre) return null;
+      return {
+        _id: variante._id || null,
+        nombre,
+        precio: variante.precio,
+        stock: variante.stock,
+        agotado: Boolean(variante.agotado),
+        color: variante.color || '',
+        talla: variante.talla || '',
+        sku: variante.sku || ''
+      };
+    })
+    .filter(Boolean);
+};
+
 const buildKey = (productoId, varianteId, agregados = []) => {
   const addonsKey = normalizarAgregados(agregados)
     .map((agg) => agg.agregadoId || agg.nombre)
@@ -77,6 +98,10 @@ const mergeItems = (items) => {
           Array.isArray(existente.agregadosDisponibles) && existente.agregadosDisponibles.length > 0
             ? existente.agregadosDisponibles
             : item.agregadosDisponibles,
+        variantesDisponibles:
+          Array.isArray(existente.variantesDisponibles) && existente.variantesDisponibles.length > 0
+            ? existente.variantesDisponibles
+            : item.variantesDisponibles,
         stockDisponible:
           typeof existente.stockDisponible === 'number'
             ? existente.stockDisponible
@@ -116,6 +141,9 @@ export function CarritoProvider({ children }) {
           ? producto.agregados.filter((agg) => agg?.nombre && agg?.activo !== false)
           : []
       );
+      const variantesDisponibles = normalizarVariantes(
+        Array.isArray(producto?.variantes) ? producto.variantes : []
+      );
       const key = buildKey(productoId, varianteId, agregados);
       const stockDisponible = obtenerStockDisponible(producto, variante);
       if (stockDisponible === 0) {
@@ -153,6 +181,7 @@ export function CarritoProvider({ children }) {
           atributos: construirAtributos(variante),
           agregados,
           agregadosDisponibles,
+          variantesDisponibles,
           precioBase: precioBaseNumerico,
           precioAgregados,
           precio,
@@ -187,9 +216,32 @@ export function CarritoProvider({ children }) {
     setCarrito((prev) =>
       prev.map((item) => {
         if (item.idCarrito !== id) return item;
+        const { variante: varianteActualizada, ...restCambios } = cambios;
+        const precioBaseVariante =
+          varianteActualizada && varianteActualizada.precio !== undefined && varianteActualizada.precio !== null
+            ? Number(varianteActualizada.precio) || 0
+            : item.precioBase;
+        const stockDisponible =
+          varianteActualizada
+            ? obtenerStockDisponible(item, varianteActualizada)
+            : item.stockDisponible;
+
         return recalcularPrecioItem({
           ...item,
-          ...cambios,
+          ...restCambios,
+          ...(varianteActualizada
+            ? {
+                varianteId: varianteActualizada._id || null,
+                varianteNombre: varianteActualizada.nombre || '',
+                atributos: construirAtributos(varianteActualizada),
+                precioBase: precioBaseVariante,
+                stockDisponible,
+                cantidad:
+                  typeof stockDisponible === 'number'
+                    ? Math.min(item.cantidad, stockDisponible)
+                    : item.cantidad
+              }
+            : {}),
           agregados: Array.isArray(cambios.agregados) ? normalizarAgregados(cambios.agregados) : item.agregados
         });
       })
@@ -209,6 +261,7 @@ export function CarritoProvider({ children }) {
         const varianteId = p.varianteId || null;
         const agregados = normalizarAgregados(p.agregados);
         const agregadosDisponibles = normalizarAgregados(p.agregadosDisponibles);
+        const variantesDisponibles = normalizarVariantes(p.variantesDisponibles);
         const precio = Number(p.precio ?? p.precio_unitario) || 0;
         const precioAgregados = calcularPrecioAgregados(agregados);
         return {
@@ -220,6 +273,7 @@ export function CarritoProvider({ children }) {
           atributos: Array.isArray(p.atributos) ? p.atributos : [],
           agregados,
           agregadosDisponibles,
+          variantesDisponibles,
           precioBase: Number(p.precioBase ?? (precio - precioAgregados)) || 0,
           precioAgregados,
           precio,

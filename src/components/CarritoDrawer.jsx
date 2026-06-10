@@ -106,6 +106,7 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
   const [itemEditando, setItemEditando] = useState(null);
   const [editObservacion, setEditObservacion] = useState('');
   const [editAgregados, setEditAgregados] = useState([]);
+  const [editVariante, setEditVariante] = useState(null);
   const [ultimaVenta, setUltimaVenta] = useState(null);
   const [configRecibo, setConfigRecibo] = useState(null);
   const ventaImpresaRef = useRef(null);
@@ -120,6 +121,21 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     Array.isArray(itemEditando?.agregadosDisponibles) && itemEditando.agregadosDisponibles.length > 0
       ? itemEditando.agregadosDisponibles
       : (Array.isArray(itemEditando?.agregados) ? itemEditando.agregados : []);
+  const variantesEditables =
+    Array.isArray(itemEditando?.variantesDisponibles) && itemEditando.variantesDisponibles.length > 0
+      ? itemEditando.variantesDisponibles
+      : [];
+
+  const normalizarStockVariante = (valor) => {
+    if (valor === null || valor === undefined || valor === '') return null;
+    const numero = Number(valor);
+    return Number.isFinite(numero) && numero >= 0 ? numero : null;
+  };
+
+  const varianteEstaAgotada = (variante) => {
+    const stock = normalizarStockVariante(variante?.stock);
+    return Boolean(variante?.agotado) || stock === 0;
+  };
 
   useEffect(() => {
     const cargarConfigRecibo = async () => {
@@ -200,6 +216,12 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     setItemEditando(item);
     setEditObservacion(item.observacion || '');
     setEditAgregados(Array.isArray(item.agregados) ? item.agregados : []);
+    const varianteActual = Array.isArray(item.variantesDisponibles)
+      ? item.variantesDisponibles.find(
+          (variante) => String(variante._id || '') === String(item.varianteId || '')
+        )
+      : null;
+    setEditVariante(varianteActual || null);
   };
 
   const toggleAgregadoEdit = (agregado) => {
@@ -229,7 +251,8 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     if (!itemEditando?.idCarrito) return;
     actualizarItemCarrito(itemEditando.idCarrito, {
       observacion: editObservacion,
-      agregados: editAgregados
+      agregados: editAgregados,
+      ...(editVariante ? { variante: editVariante } : {})
     });
     setItemEditando(null);
   };
@@ -339,7 +362,8 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
         PaperProps={{
           sx: {
             width: isMobile ? '100%' : desktopWidth,
-            height: isMobile ? '90vh' : '100%',
+            height: isMobile ? 'calc(100dvh - 56px)' : '100%',
+            maxHeight: isMobile ? 'calc(100dvh - 56px)' : '100%',
             p: 3,
             bgcolor: theme.palette.background.default,
             color: theme.palette.text.primary,
@@ -632,10 +656,73 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
           <Typography fontWeight={800} sx={{ mb: 0.5 }}>
             {itemEditando?.nombre}
           </Typography>
-          {itemEditando?.varianteNombre && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              {itemEditando.varianteNombre}
-            </Typography>
+          {variantesEditables.length > 0 && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1 }}>
+                Variantes
+              </Typography>
+              <Stack spacing={1}>
+                {variantesEditables.map((variante, index) => {
+                  const varianteId = String(variante._id || variante.nombre || index);
+                  const seleccionado = String(editVariante?._id || '') === String(variante._id || '');
+                  const agotada = varianteEstaAgotada(variante);
+                  const stock = normalizarStockVariante(variante.stock);
+                  const detalle = [variante.color, variante.talla].filter(Boolean).join(' / ');
+                  return (
+                    <Box
+                      key={`${varianteId}-${index}`}
+                      role="radio"
+                      aria-checked={seleccionado}
+                      aria-disabled={agotada}
+                      tabIndex={agotada ? -1 : 0}
+                      onClick={() => {
+                        if (!agotada) setEditVariante(variante);
+                      }}
+                      onKeyDown={(event) => {
+                        if (agotada) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setEditVariante(variante);
+                        }
+                      }}
+                      sx={{
+                        px: 1.25,
+                        py: 1,
+                        minHeight: 56,
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: seleccionado ? 'primary.main' : 'divider',
+                        backgroundColor: seleccionado ? 'primary.main' : 'background.paper',
+                        color: seleccionado ? 'primary.contrastText' : 'text.primary',
+                        opacity: agotada ? 0.55 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 1,
+                        cursor: agotada ? 'not-allowed' : 'pointer',
+                        userSelect: 'none',
+                        '&:focus-visible': {
+                          outline: '3px solid',
+                          outlineColor: 'primary.main',
+                          outlineOffset: 2
+                        }
+                      }}
+                    >
+                      <Box>
+                        <Typography fontWeight={800}>{variante.nombre}</Typography>
+                        <Typography variant="body2" sx={{ color: seleccionado ? 'inherit' : 'text.secondary' }}>
+                          {detalle ? `${detalle} · ` : ''}
+                          ${Number(variante.precio ?? itemEditando?.precioBase ?? 0).toLocaleString('es-CL')}
+                          {' · '}
+                          {agotada ? 'Agotada' : stock === null ? 'Stock libre' : `Stock ${stock}`}
+                        </Typography>
+                      </Box>
+                      <CheckCircle sx={{ opacity: seleccionado ? 1 : 0 }} />
+                    </Box>
+                  );
+                })}
+              </Stack>
+            </Box>
           )}
 
           <TextField

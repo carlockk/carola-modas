@@ -163,7 +163,8 @@ export default function ModalPago({ open, onClose, onSubmit, total = 0 }) {
       PaperProps={{
         sx: {
           width: isMobile ? '100%' : 460,
-          height: isMobile ? '92vh' : '100%',
+          height: isMobile ? 'calc(100dvh - 56px)' : '100%',
+          maxHeight: isMobile ? 'calc(100dvh - 56px)' : '100%',
           p: 2,
           boxSizing: 'border-box',
           display: 'flex',

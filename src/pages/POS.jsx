@@ -12,7 +12,8 @@ import {
   Drawer,
   Snackbar,
   Tooltip,
-  Fab
+  Fab,
+  Badge
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -166,7 +167,7 @@ const matchesCategoriaFiltro = (producto, filtroCategoria, lookups) => {
 };
 
 export default function POS() {
-  const { selectedLocal } = useAuth();
+  const { usuario, selectedLocal } = useAuth();
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [filtroCategoria, setFiltroCategoria] = useState('');
@@ -209,6 +210,7 @@ export default function POS() {
   const procesadasRef = useRef(new Set());
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const superadminSinLocal = usuario?.rol === 'superadmin' && !selectedLocal?._id;
   const userId = user?.id || user?._id || 'anonimo';
   const userKey = `${userId}_${selectedLocal?._id || 'sin-local'}`;
 
@@ -553,6 +555,30 @@ export default function POS() {
     );
   }
 
+  if (superadminSinLocal) {
+    return (
+      <Box sx={{ mt: 6, px: 2 }}>
+        <Card
+          sx={{
+            maxWidth: 460,
+            mx: 'auto',
+            textAlign: 'center',
+            p: 3
+          }}
+        >
+          <CardContent>
+            <Typography variant="h5" gutterBottom>
+              Selecciona un local
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Para usar el POS como superadmin, primero debes elegir el local activo en el menú lateral.
+            </Typography>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
+
   if (!cajaAbierta) {
     return (
       <Box sx={{ mt: 6, px: 2 }}>
@@ -597,6 +623,7 @@ export default function POS() {
           xs: 2,
           sm: openCarrito ? `${DESKTOP_CART_WIDTH + 16}px` : 2
         },
+        pb: { xs: 10, sm: 0 },
         transition: theme.transitions.create('padding-right', {
           duration: theme.transitions.duration.shortest
         })
@@ -980,6 +1007,7 @@ export default function POS() {
         onClick={() => setOpenCarrito((prev) => !prev)}
         sx={{
           position: 'fixed',
+          display: { xs: 'none', sm: 'inline-flex' },
           right: {
             xs: 16,
             sm: openCarrito ? DESKTOP_CART_WIDTH + 16 : 16
@@ -1005,6 +1033,7 @@ export default function POS() {
         onClick={() => setDrawerOpen(true)}
         sx={{
           position: 'fixed',
+          display: { xs: 'none', sm: 'inline-flex' },
           right: 16,
           bottom: 90,
           zIndex: 1500
@@ -1013,13 +1042,79 @@ export default function POS() {
         <SettingsIcon />
       </Fab>
 
+      <Box
+        sx={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: { xs: 'flex', sm: 'none' },
+          alignItems: 'center',
+          gap: 1,
+          px: 1.5,
+          py: 1,
+          zIndex: 1450,
+          backgroundColor: theme.palette.background.paper,
+          borderTop: '1px solid',
+          borderColor: theme.palette.divider,
+          boxShadow: '0 -8px 24px rgba(15,23,42,0.16)'
+        }}
+      >
+        <Button
+          variant="contained"
+          fullWidth
+          startIcon={
+            <Badge
+              badgeContent={cantidadTotalCarrito}
+              color="error"
+              invisible={cantidadTotalCarrito === 0}
+            >
+              <ShoppingCartIcon />
+            </Badge>
+          }
+          onClick={() => setOpenCarrito((prev) => !prev)}
+          sx={{
+            minHeight: 52,
+            borderRadius: 1,
+            fontWeight: 900,
+            textTransform: 'none'
+          }}
+        >
+          {openCarrito ? 'Ocultar carrito' : 'Carrito'}
+        </Button>
+        <IconButton
+          color="primary"
+          onClick={() => setDrawerOpen(true)}
+          aria-label="Ordenar categorias"
+          sx={{
+            width: 52,
+            height: 52,
+            borderRadius: 1,
+            border: '1px solid',
+            borderColor: theme.palette.divider,
+            flexShrink: 0
+          }}
+        >
+          <SettingsIcon />
+        </IconButton>
+      </Box>
+
       {/* Drawer ordenar categorías */}
       <Drawer
         anchor="right"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         PaperProps={{
-          sx: { width: isMobile ? '90%' : 320, p: 2 }
+          sx: {
+            width: isMobile ? '90%' : 320,
+            p: 2,
+            ...(isMobile
+              ? {
+                  mt: '56px',
+                  height: 'calc(100dvh - 56px)'
+                }
+              : {})
+          }
         }}
       >
         <Typography

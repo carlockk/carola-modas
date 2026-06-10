@@ -665,8 +665,8 @@ export default function Sidebar({
           overflowX: 'hidden',
           ...(isMobile
             ? {
-                marginTop: '56px',
-                height: 'calc(100% - 56px)'
+                marginTop: { xs: '56px', sm: '64px' },
+                height: { xs: 'calc(100dvh - 56px)', sm: 'calc(100dvh - 64px)' }
               }
             : {})
         }

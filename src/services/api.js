@@ -189,6 +189,9 @@ export const registrarVenta = (data) => API.post('/ventas', data);
 
 export const obtenerVentas = (params) => API.get('/ventas', { params });
 
+export const registrarDevolucion = (ventaId, data) =>
+  API.post(`/ventas/${ventaId}/devoluciones`, data);
+
 export const obtenerResumenPorFecha = (fecha) =>
   API.get('/ventas/resumen', { params: { fecha } });
 
@@ -389,5 +392,4 @@ export const redirigirAWebpay = ({ url, token }) => {
   document.body.appendChild(form);
   form.submit();
 };
-
 

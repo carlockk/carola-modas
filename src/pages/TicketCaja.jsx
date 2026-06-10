@@ -72,7 +72,9 @@ export default function TicketCaja() {
           <Typography>Usuario: {resumen.usuario}</Typography>
           <hr />
           <Typography>Monto Inicial: ${resumen.monto_inicial.toLocaleString()}</Typography>
-          <Typography>Total Vendido: ${resumen.vendido.toLocaleString()}</Typography>
+          <Typography>Ventas Brutas: ${Number(resumen.vendido || 0).toLocaleString()}</Typography>
+          <Typography>Devoluciones: -${Number(resumen.devoluciones || 0).toLocaleString()}</Typography>
+          <Typography>Venta Neta: ${Number(resumen.total_neto ?? resumen.vendido ?? 0).toLocaleString()}</Typography>
           <Typography variant="h6">Total Final: ${resumen.total.toLocaleString()}</Typography>
 
           {resumen.desglose_por_pago && Object.keys(resumen.desglose_por_pago).length > 0 && (
@@ -81,6 +83,20 @@ export default function TicketCaja() {
               <Typography variant="body2" fontWeight="bold">Desglose por método de pago:</Typography>
               {Object.entries(resumen.desglose_por_pago).map(([tipo, valor]) => (
                 <Typography key={tipo}>{tipo}: ${valor.toLocaleString()}</Typography>
+              ))}
+            </>
+          )}
+
+          {Array.isArray(resumen.detalle_devoluciones) && resumen.detalle_devoluciones.length > 0 && (
+            <>
+              <hr />
+              <Typography variant="body2" fontWeight="bold">Detalle de devoluciones:</Typography>
+              {resumen.detalle_devoluciones.map((item, index) => (
+                <Box key={item._id || `${item.fecha}-${index}`} sx={{ mb: 1 }}>
+                  <Typography>Ticket #{item.numero_pedido || '-'}: -${Number(item.monto || 0).toLocaleString()}</Typography>
+                  <Typography>{item.tipo_pago} - {item.motivo}</Typography>
+                  <Typography fontSize="0.7rem">{new Date(item.fecha).toLocaleString('es-CL')}</Typography>
+                </Box>
               ))}
             </>
           )}

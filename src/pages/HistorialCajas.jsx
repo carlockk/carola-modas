@@ -19,9 +19,13 @@ export default function HistorialCajas() {
       cierre: caja.cierre,
       monto_inicial: caja.monto_inicial,
       vendido: caja.monto_total_vendido ?? 0,
+      devoluciones: caja.monto_total_devoluciones ?? 0,
+      total_neto: caja.monto_total_neto ?? caja.monto_total_vendido ?? 0,
       total: caja.monto_total_final ?? caja.monto_inicial,
       usuario: caja.usuario || 'No registrado',
       desglose_por_pago: caja.desglose_por_pago || {},
+      desglose_devoluciones_por_pago: caja.desglose_devoluciones_por_pago || {},
+      detalle_devoluciones: caja.devoluciones || [],
     };
 
     navigate('/ticket-caja', { state: { resumen } });
@@ -45,7 +49,9 @@ export default function HistorialCajas() {
           <Typography>Apertura: {new Date(caja.apertura).toLocaleString()}</Typography>
           <Typography>Cierre: {caja.cierre ? new Date(caja.cierre).toLocaleString() : '— (abierta)'}</Typography>
           <Typography>Monto Inicial: ${caja.monto_inicial.toLocaleString()}</Typography>
-          <Typography>Total Vendido: ${caja.monto_total_vendido?.toLocaleString() ?? '0'}</Typography>
+          <Typography>Ventas Brutas: ${caja.monto_total_vendido?.toLocaleString() ?? '0'}</Typography>
+          <Typography>Devoluciones: -${Number(caja.monto_total_devoluciones || 0).toLocaleString()}</Typography>
+          <Typography>Venta Neta: ${Number(caja.monto_total_neto ?? caja.monto_total_vendido ?? 0).toLocaleString()}</Typography>
           <Typography>Total Final: ${caja.monto_total_final?.toLocaleString() ?? caja.monto_inicial.toLocaleString()}</Typography>
           <Typography>Usuario: {caja.usuario || 'No registrado'}</Typography>
 

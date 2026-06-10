@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://backendpos-yyy5.onrender.com/api/:path*"
+      "destination": "https://carolamodasback.onrender.com/api/:path*"
     },
     {
       "source": "/:path*",

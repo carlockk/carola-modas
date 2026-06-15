@@ -43,6 +43,7 @@ import PeopleAltIcon from '@mui/icons-material/PeopleAltOutlined';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import LanguageIcon from '@mui/icons-material/Language';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import DiscountOutlinedIcon from '@mui/icons-material/DiscountOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
@@ -426,6 +427,14 @@ export default function Sidebar({
           </ListItem>
         )}
         {/* POS */}
+        {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin') && (
+          <ListItem disablePadding>
+            <ListItemButton component={Link} to="/descuentos" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
+              <Box sx={{ mr: 2 }}><DiscountOutlinedIcon /></Box>
+              <ListItemText primary="Descuentos" />
+            </ListItemButton>
+          </ListItem>
+        )}
         <ListItem disablePadding>
           <ListItemButton component={Link} to="/pos" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
             <Box sx={{ mr: 2 }}><PointOfSaleIcon /></Box>

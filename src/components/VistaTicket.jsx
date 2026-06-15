@@ -147,6 +147,11 @@ export default function VistaTicket({ venta }) {
             {item.observacion && (
               <Typography variant="caption">Obs: {item.observacion}</Typography>
             )}
+            {item.descuento?.nombre && (
+              <Typography variant="caption" display="block">
+                Desc. {item.descuento.nombre}: -${((Number(item.descuento.monto) || 0) * item.cantidad).toLocaleString()}
+              </Typography>
+            )}
             <Typography>${item.precio_unitario.toLocaleString()} c/u</Typography>
           </Box>
         ))}
@@ -154,6 +159,12 @@ export default function VistaTicket({ venta }) {
         {/* 🔽 Total resaltado con líneas */}
         <Box sx={{ my: 2 }}>
           <hr />
+          {Number(venta.descuento_total || 0) > 0 && (
+            <>
+              <Typography>Subtotal: ${Number(venta.subtotal || 0).toLocaleString()}</Typography>
+              <Typography>Descuentos: -${Number(venta.descuento_total || 0).toLocaleString()}</Typography>
+            </>
+          )}
           <Typography className="bold" sx={{ fontSize: '1rem', my: 1 }}>
             Total: ${venta.total.toLocaleString()}
           </Typography>

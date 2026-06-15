@@ -172,11 +172,22 @@ export default function Ticket() {
             {item.observacion && (
               <Typography variant="caption">Obs: {item.observacion}</Typography>
             )}
+            {item.descuento?.nombre && (
+              <Typography variant="caption" display="block">
+                Desc. {item.descuento.nombre}: -${((Number(item.descuento.monto) || 0) * item.cantidad).toLocaleString()}
+              </Typography>
+            )}
             <Typography>${item.precio_unitario.toLocaleString()} c/u</Typography>
           </Box>
           ))}
 
           <hr />
+          {Number(venta.descuento_total || 0) > 0 && (
+            <>
+              <Typography variant="body2">Subtotal: ${Number(venta.subtotal || 0).toLocaleString()}</Typography>
+              <Typography variant="body2">Descuentos: -${Number(venta.descuento_total || 0).toLocaleString()}</Typography>
+            </>
+          )}
           <Typography variant="h6">Total: ${venta.total.toLocaleString()}</Typography>
           <Typography variant="body2">Pago: {venta.tipo_pago}</Typography>
           {Array.isArray(venta.pagos) && venta.pagos.length > 0 && (

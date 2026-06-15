@@ -34,6 +34,7 @@ import SocialConfig from './pages/SocialConfig';
 import HorarioTienda from './pages/HorarioTienda';
 import Restaurante from './pages/Restaurante';
 import CheckoutResult from './pages/CheckoutResult';
+import Descuentos from './pages/Descuentos';
 import { LOCAL_REQUIRED_EVENT } from './services/api';
 
 const drawerWidth = 280;
@@ -160,6 +161,7 @@ export default function App() {
             <Route path="/locales" element={usuarioGeneral ? <Locales /> : <Navigate to={rutaInicio} />} />
             <Route path="/insumos" element={usuarioGeneral ? <Insumos /> : <Navigate to={rutaInicio} />} />
             <Route path="/agregados" element={usuarioGeneral ? <Agregados /> : <Navigate to={rutaInicio} />} />
+            <Route path="/descuentos" element={esAdmin ? <Descuentos /> : <Navigate to={rutaInicio} />} />
             <Route
               path="/social"
               element={esAdmin ? <SocialConfig /> : <Navigate to={rutaInicio} />}

@@ -5,6 +5,16 @@ const CarritoContext = createContext();
 
 export const useCarrito = () => useContext(CarritoContext);
 
+const normalizarDescuento = (descuento) => {
+  if (!descuento) return null;
+  const descuentoId = descuento.descuentoId || descuento._id || null;
+  const nombre = String(descuento.nombre || '').trim();
+  const tipo = descuento.tipo === 'fijo' ? 'fijo' : descuento.tipo === 'porcentaje' ? 'porcentaje' : null;
+  const valor = Number(descuento.valor);
+  if (!descuentoId || !nombre || !tipo || !Number.isFinite(valor) || valor <= 0) return null;
+  return { descuentoId, nombre, tipo, valor };
+};
+
 const normalizarAgregados = (agregados) => {
   if (!Array.isArray(agregados)) return [];
   return agregados
@@ -130,6 +140,7 @@ const recalcularPrecioItem = (item) => {
 
 export function CarritoProvider({ children }) {
   const [carrito, setCarrito] = useState([]);
+  const [descuentoVenta, setDescuentoVenta] = useState(null);
 
   const agregarProducto = (producto, variante = null, opciones = {}) => {
     setCarrito((prev) => {
@@ -187,6 +198,7 @@ export function CarritoProvider({ children }) {
           precio,
           cantidad: 1,
           observacion: '',
+          descuento: null,
           stockDisponible
         }
       ];
@@ -252,7 +264,12 @@ export function CarritoProvider({ children }) {
     setCarrito((prev) => prev.filter((item) => item.idCarrito !== id));
   };
 
-  const vaciarCarrito = () => setCarrito([]);
+  const vaciarCarrito = () => {
+    setCarrito([]);
+    setDescuentoVenta(null);
+  };
+
+  const actualizarDescuentoVenta = (descuento) => setDescuentoVenta(normalizarDescuento(descuento));
 
   const cargarCarrito = (items, reset = false) => {
     const normalizado = mergeItems(
@@ -279,6 +296,7 @@ export function CarritoProvider({ children }) {
           precio,
           cantidad: p.cantidad || 1,
           observacion: p.observacion || '',
+          descuento: normalizarDescuento(p.descuento),
           stockDisponible: typeof p.stockDisponible === 'number' ? p.stockDisponible : null
         };
       })
@@ -301,7 +319,9 @@ export function CarritoProvider({ children }) {
         actualizarItemCarrito,
         eliminarProducto,
         vaciarCarrito,
-        cargarCarrito
+        cargarCarrito,
+        descuentoVenta,
+        actualizarDescuentoVenta
       }}
     >
       {children}

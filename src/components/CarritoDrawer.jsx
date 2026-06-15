@@ -10,16 +10,18 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
-  DialogTitle
+  DialogTitle,
+  MenuItem
 } from '@mui/material';
 import { Add, Remove, Close, DeleteOutline, CheckCircle } from '@mui/icons-material';
 import { useCarrito } from '../context/CarritoContext';
 import { useCaja } from '../context/CajaContext';
-import { registrarVenta, guardarTicket, obtenerConfigRecibo } from '../services/api'; // ✅ agregado
+import { registrarVenta, guardarTicket, obtenerConfigRecibo, obtenerDescuentos } from '../services/api'; // ✅ agregado
 import { useEffect, useRef, useState } from 'react';
 import ModalPago from './ModalPago';
 import { useTheme } from '@mui/material/styles';
 import { useMediaQuery } from '@mui/material';
+import { useAuth } from '../context/AuthContext';
 
 const formatCLP = (valor) => `$${Number(valor || 0).toLocaleString('es-CL')}`;
 
@@ -55,11 +57,22 @@ function ReciboPOSPrint({ venta, config }) {
             <Typography>Agregados: {item.agregados.map((agg) => agg.nombre).join(', ')}</Typography>
           )}
           {item.observacion && <Typography>Obs: {item.observacion}</Typography>}
+          {item.descuento?.nombre && (
+            <Typography>
+              Desc. {item.descuento.nombre}: -{formatCLP((Number(item.descuento.monto) || 0) * item.cantidad)}
+            </Typography>
+          )}
           <Typography>{formatCLP(item.precio_unitario)} c/u</Typography>
         </Box>
       ))}
 
       <hr />
+      {Number(venta.descuento_total || 0) > 0 && (
+        <>
+          <Typography>Subtotal: {formatCLP(venta.subtotal)}</Typography>
+          <Typography>Descuentos: -{formatCLP(venta.descuento_total)}</Typography>
+        </>
+      )}
       <Typography className="ticket-total">Total: {formatCLP(venta.total)}</Typography>
       <Typography>Pago: {venta.tipo_pago || '—'}</Typography>
       {Array.isArray(venta.pagos) && venta.pagos.length > 0 && (
@@ -97,7 +110,9 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     actualizarObservacion,
     actualizarItemCarrito,
     eliminarProducto,
-    vaciarCarrito
+    vaciarCarrito,
+    descuentoVenta,
+    actualizarDescuentoVenta
   } = useCarrito();
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -107,14 +122,32 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
   const [editObservacion, setEditObservacion] = useState('');
   const [editAgregados, setEditAgregados] = useState([]);
   const [editVariante, setEditVariante] = useState(null);
+  const [editDescuento, setEditDescuento] = useState(null);
+  const [descuentos, setDescuentos] = useState([]);
   const [ultimaVenta, setUltimaVenta] = useState(null);
   const [configRecibo, setConfigRecibo] = useState(null);
   const ventaImpresaRef = useRef(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { cajaAbierta, cajaVerificada } = useCaja();
+  const { selectedLocal } = useAuth();
 
-  const total = carrito.reduce((sum, p) => sum + p.precio * p.cantidad, 0);
+  const calcularMontoDescuento = (base, descuento) => {
+    const montoBase = Math.max(0, Math.round(Number(base) || 0));
+    if (!descuento) return 0;
+    const valor = Number(descuento.valor) || 0;
+    const calculado = descuento.tipo === 'porcentaje'
+      ? Math.round(montoBase * Math.min(Math.max(valor, 0), 100) / 100)
+      : Math.round(Math.max(valor, 0));
+    return Math.min(montoBase, calculado);
+  };
+  const subtotal = carrito.reduce((sum, p) => sum + (Number(p.precio) || 0) * p.cantidad, 0);
+  const descuentoProductos = carrito.reduce((sum, p) =>
+    sum + calcularMontoDescuento(p.precio, p.descuento) * p.cantidad, 0);
+  const subtotalTrasProductos = Math.max(0, subtotal - descuentoProductos);
+  const descuentoGeneral = calcularMontoDescuento(subtotalTrasProductos, descuentoVenta);
+  const descuentoTotal = descuentoProductos + descuentoGeneral;
+  const total = Math.max(0, subtotal - descuentoTotal);
   const cajaDisponible = cajaAbierta === true;
   const SWIPE_DELETE_THRESHOLD = -72;
   const agregadosEditables =
@@ -148,6 +181,18 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     };
     cargarConfigRecibo();
   }, []);
+
+  useEffect(() => {
+    const cargarDescuentos = async () => {
+      try {
+        const res = await obtenerDescuentos(true);
+        setDescuentos(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        setDescuentos([]);
+      }
+    };
+    cargarDescuentos();
+  }, [selectedLocal?._id]);
 
   useEffect(() => {
     if (!ultimaVenta || !configRecibo) return;
@@ -216,6 +261,7 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     setItemEditando(item);
     setEditObservacion(item.observacion || '');
     setEditAgregados(Array.isArray(item.agregados) ? item.agregados : []);
+    setEditDescuento(item.descuento || null);
     const varianteActual = Array.isArray(item.variantesDisponibles)
       ? item.variantesDisponibles.find(
           (variante) => String(variante._id || '') === String(item.varianteId || '')
@@ -252,6 +298,7 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     actualizarItemCarrito(itemEditando.idCarrito, {
       observacion: editObservacion,
       agregados: editAgregados,
+      descuento: editDescuento,
       ...(editVariante ? { variante: editVariante } : {})
     });
     setItemEditando(null);
@@ -274,7 +321,8 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
       varianteId: p.varianteId || null,
       varianteNombre: p.varianteNombre || '',
       atributos: Array.isArray(p.atributos) ? p.atributos : [],
-      agregados: Array.isArray(p.agregados) ? p.agregados : []
+      agregados: Array.isArray(p.agregados) ? p.agregados : [],
+      descuento: p.descuento || null
     }));
 
     try {
@@ -286,7 +334,8 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
         tipo_pedido: tipoPedido || '—',
         monto_recibido: montoRecibido,
         vuelto,
-        pagos
+        pagos,
+        descuento_venta: descuentoVenta
       });
 
       vaciarCarrito();
@@ -294,16 +343,11 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
         onVentaCompletada();
       }
 
-      setUltimaVenta({
-        numero_pedido: res.data.numero_pedido,
-        productos: productos_limpios,
-        total,
-        tipo_pago: tipoPago,
-        tipo_pedido: tipoPedido || '—',
-        monto_recibido: montoRecibido,
-        vuelto,
-        pagos,
-        fecha: new Date().toISOString()
+      setUltimaVenta(res.data.venta || {
+        numero_pedido: res.data.numero_pedido, productos: productos_limpios, subtotal,
+        descuento_total: descuentoTotal, descuento_venta: descuentoVenta, total,
+        tipo_pago: tipoPago, tipo_pedido: tipoPedido || '—', monto_recibido: montoRecibido,
+        vuelto, pagos, fecha: new Date().toISOString()
       });
     } catch (err) {
       console.error(err);
@@ -331,13 +375,17 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
       varianteId: p.varianteId || null,
       varianteNombre: p.varianteNombre || '',
       atributos: Array.isArray(p.atributos) ? p.atributos : [],
-      agregados: Array.isArray(p.agregados) ? p.agregados : []
+      agregados: Array.isArray(p.agregados) ? p.agregados : [],
+      descuento: p.descuento || null
     }));
 
     try {
       await guardarTicket({
         nombre: ticketNombre,
         productos: productos_limpios,
+        subtotal,
+        descuento_total: descuentoTotal,
+        descuento_venta: descuentoVenta,
         total
       });
 
@@ -535,6 +583,11 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
                               .join(' · ')}
                           </Typography>
                         )}
+                        {item.descuento && (
+                          <Typography variant="caption" color="success.main" sx={{ display: 'block', lineHeight: 1.25 }}>
+                            Descuento: {item.descuento.nombre} (-${(calcularMontoDescuento(item.precio, item.descuento) * item.cantidad).toLocaleString('es-CL')})
+                          </Typography>
+                        )}
                       </Box>
 
                       <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>
@@ -593,9 +646,27 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
               );
             })}
 
-            <Typography variant="h6" sx={{ mt: 2, textAlign: 'right' }}>
-              Total: <strong>${total.toFixed(0)}</strong>
-            </Typography>
+            <TextField
+              select fullWidth size="small" label="Descuento para toda la venta" sx={{ mt: 2 }}
+              value={descuentoVenta?.descuentoId || ''}
+              onChange={(e) => actualizarDescuentoVenta(
+                descuentos.find((item) => String(item._id) === String(e.target.value)) || null
+              )}
+            >
+              <MenuItem value="">Sin descuento general</MenuItem>
+              {descuentos.map((descuento) => (
+                <MenuItem key={descuento._id} value={descuento._id}>
+                  {descuento.nombre} ({descuento.tipo === 'porcentaje' ? `${descuento.valor}%` : `$${Number(descuento.valor).toLocaleString('es-CL')}`})
+                </MenuItem>
+              ))}
+            </TextField>
+            <Box sx={{ mt: 2, textAlign: 'right' }}>
+              <Typography variant="body2">Subtotal: ${subtotal.toLocaleString('es-CL')}</Typography>
+              {descuentoTotal > 0 && (
+                <Typography variant="body2" color="success.main">Descuentos: -${descuentoTotal.toLocaleString('es-CL')}</Typography>
+              )}
+              <Typography variant="h6">Total: <strong>${total.toLocaleString('es-CL')}</strong></Typography>
+            </Box>
 
             {cajaVerificada && !cajaDisponible && (
               <Alert severity="warning" sx={{ mt: 2 }}>
@@ -734,6 +805,21 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
             minRows={2}
             sx={{ mb: 2 }}
           />
+
+          <TextField
+            select fullWidth label="Descuento para este producto" sx={{ mb: 2 }}
+            value={editDescuento?.descuentoId || editDescuento?._id || ''}
+            onChange={(event) => setEditDescuento(
+              descuentos.find((item) => String(item._id) === String(event.target.value)) || null
+            )}
+          >
+            <MenuItem value="">Sin descuento</MenuItem>
+            {descuentos.map((descuento) => (
+              <MenuItem key={descuento._id} value={descuento._id}>
+                {descuento.nombre} ({descuento.tipo === 'porcentaje' ? `${descuento.valor}%` : `$${Number(descuento.valor).toLocaleString('es-CL')}`})
+              </MenuItem>
+            ))}
+          </TextField>
 
           {agregadosEditables.length > 0 && (
             <Box>

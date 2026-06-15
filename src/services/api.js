@@ -192,6 +192,12 @@ export const obtenerVentas = (params) => API.get('/ventas', { params });
 export const registrarDevolucion = (ventaId, data) =>
   API.post(`/ventas/${ventaId}/devoluciones`, data);
 
+export const obtenerDescuentos = (soloActivos = false) =>
+  API.get('/descuentos', { params: soloActivos ? { activos: true } : {} });
+export const crearDescuento = (data) => API.post('/descuentos', data);
+export const editarDescuento = (id, data) => API.put(`/descuentos/${id}`, data);
+export const eliminarDescuento = (id) => API.delete(`/descuentos/${id}`);
+
 export const obtenerResumenPorFecha = (fecha) =>
   API.get('/ventas/resumen', { params: { fecha } });
 
@@ -392,4 +398,3 @@ export const redirigirAWebpay = ({ url, token }) => {
   document.body.appendChild(form);
   form.submit();
 };
-

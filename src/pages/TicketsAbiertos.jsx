@@ -15,7 +15,7 @@ import { useAuth } from '../context/AuthContext';
 export default function TicketsAbiertos() {
   const { selectedLocal } = useAuth();
   const [tickets, setTickets] = useState([]);
-  const { cargarCarrito } = useCarrito();
+  const { cargarCarrito, actualizarDescuentoVenta } = useCarrito();
   const navigate = useNavigate();
 
   const cargarTickets = async () => {
@@ -32,6 +32,7 @@ export default function TicketsAbiertos() {
   const handleCargarAlCarrito = async (ticket) => {
     await eliminarTicket(ticket._id); // 🔥 Eliminamos ticket antes (opcional)
     cargarCarrito(ticket.productos, true); // 🔥 Reemplaza el carrito por este ticket
+    actualizarDescuentoVenta(ticket.descuento_venta || null);
     navigate('/pos');
   };
 

@@ -945,7 +945,7 @@ export default function Insumos() {
                   <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>Existencia</TableCell>
                   <TableCell>Minimo</TableCell>
                   <TableCell>Obs.</TableCell>
-                  <TableCell sx={{ fontSize: '0.75rem' }}>Ingresos/Egresos</TableCell>
+                  <TableCell sx={{ fontSize: '0.75rem' }}>Entradas / Salidas</TableCell>
                   <TableCell align="right" sx={{ fontSize: '0.75rem' }}>Acciones</TableCell>
                 </TableRow>
               </TableHead>

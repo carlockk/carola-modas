@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
@@ -24,6 +24,8 @@ const emptyForm = {
   color: '',
   talla: '',
   imagen_url: '',
+  producto_relacionado: '',
+  variante_relacionada: '',
   unidad: 'unid',
   categoria: '',
   stock_minimo: '',
@@ -36,6 +38,7 @@ export default function InsumoDialog({
   onClose,
   insumo,
   categorias,
+  productos = [],
   externalError,
   onInfo,
   onError,
@@ -58,6 +61,11 @@ export default function InsumoDialog({
         color: insumo.color || '',
         talla: insumo.talla || '',
         imagen_url: insumo.imagen_url || '',
+        producto_relacionado:
+          typeof insumo.producto_relacionado === 'object'
+            ? insumo.producto_relacionado?._id || ''
+            : insumo.producto_relacionado || '',
+        variante_relacionada: insumo.variante_relacionada || '',
         unidad: insumo.unidad || 'unid',
         categoria: insumo.categoria?._id || '',
         stock_minimo: insumo.stock_minimo ?? '',
@@ -70,6 +78,16 @@ export default function InsumoDialog({
     setImagen(null);
     setLocalError('');
   }, [open, insumo]);
+
+  const productoRelacionado = useMemo(
+    () => productos.find((item) => item._id === form.producto_relacionado) || null,
+    [productos, form.producto_relacionado]
+  );
+
+  const variantesRelacionadas = useMemo(
+    () => (Array.isArray(productoRelacionado?.variantes) ? productoRelacionado.variantes : []),
+    [productoRelacionado]
+  );
 
   const handleSave = async () => {
     setLocalError('');
@@ -87,6 +105,13 @@ export default function InsumoDialog({
       return;
     }
 
+    if (form.producto_relacionado && variantesRelacionadas.length > 0 && !form.variante_relacionada) {
+      const msg = 'Debes seleccionar la variante relacionada.';
+      setLocalError(msg);
+      onError?.(msg);
+      return;
+    }
+
     const payload = new FormData();
     payload.append('nombre', form.nombre.trim());
     payload.append('descripcion', form.descripcion.trim());
@@ -94,6 +119,8 @@ export default function InsumoDialog({
     payload.append('color', form.color.trim());
     payload.append('talla', form.talla.trim());
     payload.append('imagen_url', form.imagen_url.trim());
+    payload.append('producto_relacionado', form.producto_relacionado || '');
+    payload.append('variante_relacionada', form.variante_relacionada || '');
     payload.append('unidad', 'unid');
     payload.append(
       'categoria',
@@ -177,6 +204,55 @@ export default function InsumoDialog({
               fullWidth
             />
           </Stack>
+          <TextField
+            select
+            label="Producto relacionado (opcional)"
+            value={form.producto_relacionado}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                producto_relacionado: e.target.value,
+                variante_relacionada: ''
+              }))
+            }
+            helperText="Si este item sale desde bodega, esa salida puede sumarse al stock del producto relacionado."
+          >
+            <MenuItem value="">Sin relacion</MenuItem>
+            {productos.map((producto) => (
+              <MenuItem key={producto._id} value={producto._id}>
+                {producto.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Variante relacionada"
+            value={form.variante_relacionada}
+            onChange={(e) => setForm((prev) => ({ ...prev, variante_relacionada: e.target.value }))}
+            disabled={!form.producto_relacionado || variantesRelacionadas.length === 0}
+            helperText={
+              form.producto_relacionado
+                ? variantesRelacionadas.length > 0
+                  ? 'Obligatoria cuando el producto tiene variantes.'
+                  : 'Este producto no tiene variantes.'
+                : 'Selecciona primero un producto relacionado.'
+            }
+          >
+            <MenuItem value="">Sin variante</MenuItem>
+            {variantesRelacionadas.map((variante) => {
+              const partes = [
+                variante.nombre,
+                variante.color,
+                variante.talla,
+                variante.sku ? `SKU: ${variante.sku}` : ''
+              ].filter(Boolean);
+              return (
+                <MenuItem key={variante._id} value={variante._id}>
+                  {partes.join(' | ')}
+                </MenuItem>
+              );
+            })}
+          </TextField>
           {form.imagen_url && (
             <Stack spacing={1} alignItems="flex-start">
               <Typography variant="body2" color="text.secondary">Imagen actual</Typography>

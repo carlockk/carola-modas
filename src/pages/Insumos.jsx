@@ -55,6 +55,8 @@ import {
   guardarConfigAlertasInsumos,
   enviarResumenAlertasInsumos,
   clonarInsumos,
+  obtenerProductos,
+  importarProductosABodega,
   actualizarOrdenInsumos,
   obtenerCategoriasInsumo,
   crearCategoriaInsumo,
@@ -122,6 +124,7 @@ export default function Insumos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [productos, setProductos] = useState([]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingInsumo, setEditingInsumo] = useState(null);
@@ -152,6 +155,9 @@ export default function Insumos() {
   const [cloneMode, setCloneMode] = useState('all');
   const [cloneInsumo, setCloneInsumo] = useState(null);
   const [cloneLoading, setCloneLoading] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importProductoIds, setImportProductoIds] = useState([]);
+  const [importLoading, setImportLoading] = useState(false);
   const [ordenando, setOrdenando] = useState(false);
   const [categoriasInsumo, setCategoriasInsumo] = useState([]);
   const [categoriaDialogOpen, setCategoriaDialogOpen] = useState(false);
@@ -233,6 +239,25 @@ export default function Insumos() {
   }, [selectedLocal?._id, isSuperadmin]);
 
   useEffect(() => {
+    const cargarProductos = async () => {
+      const localId = selectedLocal?._id || null;
+      if (isSuperadmin && !localId) {
+        setProductos([]);
+        return;
+      }
+
+      try {
+        const res = await obtenerProductos();
+        setProductos(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        setProductos([]);
+      }
+    };
+
+    cargarProductos();
+  }, [selectedLocal?._id, isSuperadmin]);
+
+  useEffect(() => {
     setTabCategoria('todas');
     setOrdenarTabs(false);
     setDialogOpen(false);
@@ -244,6 +269,8 @@ export default function Insumos() {
     setObsInput('');
     setObsLeidosMap({});
     setVisibleCount(50);
+    setImportOpen(false);
+    setImportProductoIds([]);
   }, [selectedLocal?._id]);
 
   useEffect(() => {
@@ -410,6 +437,37 @@ export default function Insumos() {
     setDialogOpen(true);
     setError('');
     setInfo('');
+  };
+
+  const openImportDialog = () => {
+    setImportProductoIds([]);
+    setImportOpen(true);
+    setError('');
+    setInfo('');
+  };
+
+  const handleImportarProductos = async ({ importarTodos = false } = {}) => {
+    if (!importarTodos && importProductoIds.length === 0) {
+      setError('Selecciona al menos un producto para importar.');
+      return;
+    }
+
+    try {
+      setImportLoading(true);
+      const res = await importarProductosABodega(
+        importarTodos
+          ? { importarTodos: true }
+          : { productoIds: importProductoIds }
+      );
+      setInfo(res.data?.mensaje || 'Importacion completada.');
+      setImportOpen(false);
+      setImportProductoIds([]);
+      await fetchInsumos();
+    } catch (err) {
+      setError(err?.response?.data?.error || 'No se pudieron importar los productos.');
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   const openAlertas = async () => {
@@ -730,6 +788,9 @@ export default function Insumos() {
             <Stack direction="row" spacing={1}>
               <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
                 Crear producto bodega
+              </Button>
+              <Button variant="outlined" onClick={openImportDialog}>
+                Importar desde productos
               </Button>
               {isSuperadmin && (
                 <>
@@ -1192,11 +1253,57 @@ export default function Insumos() {
         onClose={() => setDialogOpen(false)}
         insumo={editingInsumo}
         categorias={categoriasInsumo}
+        productos={productos}
         externalError={error}
         onInfo={setInfo}
         onError={setError}
         onSaved={fetchInsumos}
       />
+
+      <Dialog open={importOpen} onClose={() => setImportOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Importar productos a stock bodega</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Recomendacion: importar desde productos es la forma correcta de poblar bodega cuando ya tienes catalogo creado. Si un producto tiene variantes, se crea un item por variante.
+            </Typography>
+            <TextField
+              select
+              label="Productos a importar"
+              SelectProps={{
+                multiple: true,
+                value: importProductoIds,
+                onChange: (e) => setImportProductoIds(e.target.value),
+                renderValue: (selected) => {
+                  const map = new Map(productos.map((item) => [item._id, item.nombre]));
+                  return selected.map((id) => map.get(id) || 'Producto').join(', ');
+                }
+              }}
+              helperText="Puedes elegir algunos productos o usar el boton de importar todos."
+            >
+              {productos.map((producto) => (
+                <MenuItem key={producto._id} value={producto._id}>
+                  {producto.nombre}
+                  {Array.isArray(producto.variantes) && producto.variantes.length > 0
+                    ? ` (${producto.variantes.length} variantes)`
+                    : ''}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3 }}>
+          <Button onClick={() => handleImportarProductos({ importarTodos: true })} disabled={importLoading}>
+            {importLoading ? 'Importando...' : 'Importar todos'}
+          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button onClick={() => setImportOpen(false)}>Cancelar</Button>
+            <Button variant="contained" onClick={() => handleImportarProductos()} disabled={importLoading}>
+              {importLoading ? 'Importando...' : 'Importar seleccionados'}
+            </Button>
+          </Stack>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={alertOpen} onClose={() => setAlertOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Configurar alertas de stock bodega</DialogTitle>

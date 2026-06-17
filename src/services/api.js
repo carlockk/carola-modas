@@ -259,6 +259,7 @@ export const editarObservacionInsumo = (id, obsId, data) =>
 export const eliminarObservacionInsumo = (id, obsId) =>
   API.delete(`/insumos/${id}/observaciones/${obsId}`);
 export const clonarInsumos = (data) => API.post('/insumos/clonar', data);
+export const importarProductosABodega = (data) => API.post('/insumos/importar-productos', data);
 export const actualizarOrdenInsumos = (data) => API.put('/insumos/orden', data);
 export const obtenerCategoriasInsumo = () => API.get('/insumo-categorias');
 export const crearCategoriaInsumo = (data) => API.post('/insumo-categorias', data);

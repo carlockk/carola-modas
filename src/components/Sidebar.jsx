@@ -35,6 +35,7 @@ import { guardarLogoWebCliente, obtenerConfigSocial, obtenerLocales } from '../s
 // Icons
 import DashboardIcon from '@mui/icons-material/DashboardOutlined';
 import InventoryIcon from '@mui/icons-material/Inventory2Outlined';
+import InventoryOutlinedIcon from '@mui/icons-material/InventoryOutlined';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSaleOutlined';
 import HistoryIcon from '@mui/icons-material/HistoryOutlined';
 import StoreIcon from '@mui/icons-material/StoreOutlined';
@@ -386,6 +387,16 @@ export default function Sidebar({
             <ListItemText primary="Productos" />
           </ListItemButton>
         </ListItem>
+
+        {/* Insumos */}
+        {usuario && (
+          <ListItem disablePadding>
+            <ListItemButton component={Link} to="/insumos" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
+              <Box sx={{ mr: 2 }}><InventoryOutlinedIcon /></Box>
+              <ListItemText primary="Insumos" />
+            </ListItemButton>
+          </ListItem>
+        )}
 
         {/* Categorias */}
         {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin') && (

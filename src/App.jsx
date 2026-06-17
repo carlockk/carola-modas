@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   AppBar, Toolbar, IconButton, Typography, Box, CssBaseline, useMediaQuery, Snackbar, Alert
 } from '@mui/material';
@@ -11,31 +11,32 @@ import { CajaProvider } from './context/CajaContext';
 import Sidebar from './components/Sidebar';
 import PedidosWebWatcher from './components/PedidosWebWatcher';
 import RestauranteCobroWatcher from './components/RestauranteCobroWatcher';
-import Productos from './pages/Productos';
-import CrearProducto from './pages/CrearProducto';
-import Categorias from './pages/CrearCategoria';
-import POS from './pages/POS';
-import Ticket from './pages/Ticket';
-import Historial from './pages/Historial';
-import Caja from './pages/Caja';
-import HistorialCajas from './pages/HistorialCajas';
-import TicketCaja from './pages/TicketCaja';
-import CrearUsuario from './pages/CrearUsuario';
-import ListaUsuarios from './pages/ListaUsuarios';
-import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
-import TicketsAbiertos from './pages/TicketsAbiertos';
-import Locales from './pages/Locales';
-import Insumos from './pages/Insumos';
-import ConfigRecibo from './pages/ConfigRecibo';
-import Agregados from './pages/Agregados';
-import PedidosWeb from './pages/PedidosWeb';
-import SocialConfig from './pages/SocialConfig';
-import HorarioTienda from './pages/HorarioTienda';
-import Restaurante from './pages/Restaurante';
-import CheckoutResult from './pages/CheckoutResult';
-import Descuentos from './pages/Descuentos';
 import { LOCAL_REQUIRED_EVENT } from './services/api';
+
+const Productos = lazy(() => import('./pages/Productos'));
+const CrearProducto = lazy(() => import('./pages/CrearProducto'));
+const Categorias = lazy(() => import('./pages/CrearCategoria'));
+const POS = lazy(() => import('./pages/POS'));
+const Ticket = lazy(() => import('./pages/Ticket'));
+const Historial = lazy(() => import('./pages/Historial'));
+const Caja = lazy(() => import('./pages/Caja'));
+const HistorialCajas = lazy(() => import('./pages/HistorialCajas'));
+const TicketCaja = lazy(() => import('./pages/TicketCaja'));
+const CrearUsuario = lazy(() => import('./pages/CrearUsuario'));
+const ListaUsuarios = lazy(() => import('./pages/ListaUsuarios'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Login = lazy(() => import('./pages/Login'));
+const TicketsAbiertos = lazy(() => import('./pages/TicketsAbiertos'));
+const Locales = lazy(() => import('./pages/Locales'));
+const Insumos = lazy(() => import('./pages/Insumos'));
+const ConfigRecibo = lazy(() => import('./pages/ConfigRecibo'));
+const Agregados = lazy(() => import('./pages/Agregados'));
+const PedidosWeb = lazy(() => import('./pages/PedidosWeb'));
+const SocialConfig = lazy(() => import('./pages/SocialConfig'));
+const HorarioTienda = lazy(() => import('./pages/HorarioTienda'));
+const Restaurante = lazy(() => import('./pages/Restaurante'));
+const CheckoutResult = lazy(() => import('./pages/CheckoutResult'));
+const Descuentos = lazy(() => import('./pages/Descuentos'));
 
 const drawerWidth = 280;
 const collapsedDrawerWidth = 72;
@@ -128,6 +129,7 @@ export default function App() {
                 }
           }
         >
+          <Suspense fallback={<Box sx={{ p: 3 }}><Typography>Cargando...</Typography></Box>}>
           <Routes>
             <Route path="/login" element={!usuario ? <Login /> : <Navigate to={esMesero ? '/restaurante' : '/dashboard'} />} />
             <Route path="/checkout/result" element={<CheckoutResult />} />
@@ -176,6 +178,7 @@ export default function App() {
             />
             <Route path="*" element={<Navigate to={usuario ? rutaInicio : '/login'} />} />
           </Routes>
+          </Suspense>
         </Box>
 
         <Snackbar

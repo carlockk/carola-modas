@@ -634,6 +634,8 @@ export default function Productos() {
                             component="img"
                             src={imagenUrl}
                             alt={prod.nombre}
+                            loading="lazy"
+                            decoding="async"
                             sx={{
                               width: '100%',
                               height: '100%',

@@ -338,17 +338,19 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
         descuento_venta: descuentoVenta
       });
 
-      vaciarCarrito();
-      if (typeof onVentaCompletada === 'function') {
-        onVentaCompletada();
-      }
-
-      setUltimaVenta(res.data.venta || {
+      const ventaRegistrada = res.data.venta || {
         numero_pedido: res.data.numero_pedido, productos: productos_limpios, subtotal,
         descuento_total: descuentoTotal, descuento_venta: descuentoVenta, total,
         tipo_pago: tipoPago, tipo_pedido: tipoPedido || '—', monto_recibido: montoRecibido,
         vuelto, pagos, fecha: new Date().toISOString()
-      });
+      };
+
+      vaciarCarrito();
+      if (typeof onVentaCompletada === 'function') {
+        onVentaCompletada(ventaRegistrada);
+      }
+
+      setUltimaVenta(ventaRegistrada);
     } catch (err) {
       console.error(err);
       const mensaje = err?.response?.data?.error || 'Error al registrar la venta';

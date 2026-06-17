@@ -794,6 +794,8 @@ export default function POS() {
                     component="img"
                     src={imagenSrc}
                     alt={prod.nombre}
+                    loading="lazy"
+                    decoding="async"
                     sx={{
                       position: 'absolute',
                       inset: 0,
@@ -1205,7 +1207,37 @@ export default function POS() {
       <CarritoDrawer
         open={openCarrito}
         onClose={() => setOpenCarrito(false)}
-        onVentaCompletada={cargarDatos}
+        onVentaCompletada={(venta) => {
+          const vendidos = Array.isArray(venta?.productos) ? venta.productos : [];
+          if (vendidos.length === 0) return;
+          setProductos((prev) => prev.map((producto) => {
+            const itemsProducto = vendidos.filter((item) => String(item.productoId) === String(producto._id));
+            if (itemsProducto.length === 0) return producto;
+
+            if (Array.isArray(producto.variantes) && producto.variantes.length > 0) {
+              const variantes = producto.variantes.map((variante) => {
+                const vendidosVariante = itemsProducto
+                  .filter((item) => String(item.varianteId || '') === String(variante._id || ''))
+                  .reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0);
+                if (!vendidosVariante || typeof variante.stock !== 'number') return variante;
+                return { ...variante, stock: Math.max(0, variante.stock - vendidosVariante) };
+              });
+              const stocks = variantes
+                .map((variante) => (typeof variante.stock === 'number' ? variante.stock : null))
+                .filter((stock) => stock !== null);
+              return {
+                ...producto,
+                variantes,
+                stock_total: stocks.length > 0 ? stocks.reduce((sum, stock) => sum + stock, 0) : producto.stock_total
+              };
+            }
+
+            const cantidadVendida = itemsProducto.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0);
+            if (typeof producto.stock !== 'number') return producto;
+            const stock = Math.max(0, producto.stock - cantidadVendida);
+            return { ...producto, stock, stock_total: stock };
+          }));
+        }}
         desktopWidth={DESKTOP_CART_WIDTH}
       />
       <SelectorVariantes

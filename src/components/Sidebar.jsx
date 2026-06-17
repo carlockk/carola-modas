@@ -388,12 +388,12 @@ export default function Sidebar({
           </ListItemButton>
         </ListItem>
 
-        {/* Insumos */}
+        {/* Stock bodega */}
         {usuario && (
           <ListItem disablePadding>
             <ListItemButton component={Link} to="/insumos" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
               <Box sx={{ mr: 2 }}><InventoryOutlinedIcon /></Box>
-              <ListItemText primary="Insumos" />
+              <ListItemText primary="Stock bodega" />
             </ListItemButton>
           </ListItem>
         )}

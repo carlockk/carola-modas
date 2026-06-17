@@ -146,7 +146,7 @@ export default function InsumoDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{editingId ? 'Editar insumo' : 'Crear insumo'}</DialogTitle>
+      <DialogTitle>{editingId ? 'Editar producto bodega' : 'Crear producto bodega'}</DialogTitle>
       <DialogContent dividers>
         {(localError || externalError) && (
           <Alert severity="error" sx={{ mb: 2 }}>

@@ -719,15 +719,15 @@ export default function Insumos() {
       >
         <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems="center" spacing={2} sx={{ mb: 2 }}>
           <Box>
-            <Typography variant="h5" gutterBottom>Insumos</Typography>
+            <Typography variant="h5" gutterBottom>Stock bodega</Typography>
             <Typography variant="body2" color="text.secondary">
-              Inventario de materias primas e insumos.
+              Inventario de productos de bodega.
             </Typography>
           </Box>
           {isAdmin && (
             <Stack direction="row" spacing={1}>
               <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
-                Crear insumo
+                Crear producto bodega
               </Button>
               {isSuperadmin && (
                 <>

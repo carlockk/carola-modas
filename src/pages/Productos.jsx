@@ -405,11 +405,26 @@ export default function Productos() {
 
   const handleCerrarMensaje = () => setMensaje('');
 
-  const obtenerImagenUrl = (prod) => {
+  const optimizarCloudinary = (url, transformacion) => {
+    const value = String(url || '');
+    if (!value.includes('res.cloudinary.com') || !value.includes('/upload/')) return value;
+    const [prefix, rest] = value.split('/upload/');
+    const partes = rest.split('/');
+    const primeraParte = partes[0] || '';
+    const tieneTransformacion =
+      primeraParte.includes(',') || /^(f_|q_|w_|h_|c_|g_|e_|dpr_|ar_)/.test(primeraParte);
+    const resto = /^v\d+/.test(primeraParte) || !tieneTransformacion ? partes : partes.slice(1);
+    return `${prefix}/upload/${transformacion}/${resto.join('/')}`;
+  };
+
+  const obtenerImagenUrl = (prod, { miniatura = false } = {}) => {
     if (!prod.imagen_url) return '';
-    return prod.imagen_url.startsWith('/uploads')
+    const url = prod.imagen_url.startsWith('/uploads')
       ? `${BASE_URL}${prod.imagen_url}`
       : prod.imagen_url;
+    return miniatura
+      ? optimizarCloudinary(url, 'f_auto,q_auto:good,w_160,h_160,c_fill')
+      : optimizarCloudinary(url, 'f_auto,q_auto:good,w_900,c_limit');
   };
 
   const handleAbrirImagen = (prod) => {
@@ -531,7 +546,118 @@ export default function Productos() {
           boxShadow: 'none'
         }}
       >
-        <Table>
+        <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' }, p: 1 }}>
+          {productosEnPagina.map((prod) => {
+            const hayVariantes = tieneVariantes(prod);
+            const stockTotal = obtenerStockTotal(prod);
+            const imagenUrl = obtenerImagenUrl(prod, { miniatura: true });
+
+            return (
+              <Paper key={prod._id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                <Stack direction="row" spacing={1.25} alignItems="flex-start">
+                  <Box
+                    onClick={() => handleAbrirImagen(prod)}
+                    sx={{
+                      width: 76,
+                      height: 76,
+                      flexShrink: 0,
+                      overflow: 'hidden',
+                      borderRadius: 1.5,
+                      backgroundColor: '#f4f4f4',
+                      cursor: imagenUrl ? 'pointer' : 'default',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {imagenUrl ? (
+                      <Box
+                        component="img"
+                        src={imagenUrl}
+                        alt={prod.nombre}
+                        loading="lazy"
+                        decoding="async"
+                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <Typography variant="caption" color="text.secondary" align="center">
+                        Sin imagen
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 0.25 }}>
+                      <Typography fontWeight={800} sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {prod.nombre}
+                      </Typography>
+                      {hayVariantes && (
+                        <Chip label="Variantes" size="small" color="primary" variant="outlined" />
+                      )}
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary">
+                      {prod.categoria?.nombre || 'Sin categoria'}
+                    </Typography>
+                    <Typography variant="body2">
+                      Stock: {stockTotal === null ? 'No controlado' : stockTotal}
+                    </Typography>
+                    <Typography fontWeight={800}>
+                      ${prod.precio.toLocaleString('es-CL')}
+                    </Typography>
+                  </Box>
+                </Stack>
+
+                <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center" sx={{ mt: 1 }}>
+                  <Button size="small" onClick={() => toggleDetalle(prod._id)}>
+                    {detalleAbierto === prod._id ? 'Ocultar detalle' : 'Ver detalle'}
+                  </Button>
+                  <Stack direction="row" spacing={0.5}>
+                    <IconButton size="small" color="primary" onClick={() => handleEditarClick(prod)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    {puedeEliminar && (
+                      <IconButton size="small" color="error" onClick={() => handleEliminarClick(prod)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Stack>
+                </Stack>
+
+                <Collapse in={detalleAbierto === prod._id} timeout="auto" unmountOnExit>
+                  <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+                    {hayVariantes ? (
+                      <Stack spacing={0.75}>
+                        {prod.variantes.map((vari, idx) => (
+                          <Box key={idx}>
+                            <Typography variant="body2" fontWeight={700}>{vari.nombre}</Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {[vari.color, vari.talla].filter(Boolean).join(' / ') || 'Sin atributos'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Stock: {Number(vari.stock) || 0}
+                              {vari.precio ? ` · $${vari.precio.toLocaleString('es-CL')}` : ''}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Producto sin variantes.
+                      </Typography>
+                    )}
+                    {hayVariantes && (
+                      <Button size="small" variant="outlined" sx={{ mt: 1 }} onClick={() => setProductoStockModal(prod)}>
+                        Ver stock por variante
+                      </Button>
+                    )}
+                  </Box>
+                </Collapse>
+              </Paper>
+            );
+          })}
+        </Stack>
+
+        <Table sx={{ display: { xs: 'none', sm: 'table' } }}>
           <TableHead>
             <TableRow>
               <TableCell />
@@ -548,7 +674,7 @@ export default function Productos() {
               const hayVariantes = tieneVariantes(prod);
               const stockTotal = obtenerStockTotal(prod);
               const totalVisible = stockTotal;
-              const imagenUrl = obtenerImagenUrl(prod);
+              const imagenUrl = obtenerImagenUrl(prod, { miniatura: true });
 
               return (
                 <Fragment key={prod._id}>

@@ -40,7 +40,6 @@ import { useAuth } from '../context/AuthContext';
 import InsumoDialog from './insumos/InsumoDialog';
 import MovimientoDialog from './insumos/MovimientoDialog';
 import HistorialDialog from './insumos/HistorialDialog';
-import LotesDialog from './insumos/LotesDialog';
 import {
   obtenerInsumos,
   eliminarInsumo,
@@ -61,19 +60,9 @@ import {
   crearCategoriaInsumo,
   editarCategoriaInsumo,
   eliminarCategoriaInsumo,
-  actualizarOrdenCategoriasInsumo
+  actualizarOrdenCategoriasInsumo,
+  FILES_BASE
 } from '../services/api';
-
-const estadoVencimiento = (lote, alertaDias) => {
-  if (!lote?.fecha_vencimiento) return 'normal';
-  const hoy = new Date();
-  const venc = new Date(lote.fecha_vencimiento);
-  if (Number.isNaN(venc.getTime())) return 'normal';
-  const diff = Math.ceil((venc - hoy) / (1000 * 60 * 60 * 24));
-  if (diff < 0) return 'vencido';
-  if (diff <= alertaDias) return 'por_vencer';
-  return 'normal';
-};
 
 const normalizarTexto = (valor = '') =>
   String(valor || '')
@@ -99,6 +88,27 @@ const getObsLastTimestamp = (observaciones = []) => {
   }, 0);
 };
 
+const aplicarTransformacionCloudinary = (url = '', transformacion) => {
+  const value = String(url || '');
+  if (!value.includes('res.cloudinary.com') || !value.includes('/upload/')) return value;
+  const [base, rest] = value.split('/upload/');
+  const partes = rest.split('/');
+  const primera = partes[0] || '';
+  const tieneTransformacion = primera.includes(',') || /^(f_|q_|w_|h_|c_|g_|e_|dpr_|ar_)/.test(primera);
+  const ruta = /^v\d+/.test(primera) || !tieneTransformacion ? partes : partes.slice(1);
+  return `${base}/upload/${transformacion}/${ruta.join('/')}`;
+};
+
+const obtenerImagenStockUrl = (item, { miniatura = true } = {}) => {
+  if (!item?.imagen_url) return '';
+  const url = item.imagen_url.startsWith('/uploads')
+    ? `${FILES_BASE}${item.imagen_url}`
+    : item.imagen_url;
+  return miniatura
+    ? aplicarTransformacionCloudinary(url, 'f_auto,q_auto:good,w_120,h_120,c_fill')
+    : aplicarTransformacionCloudinary(url, 'f_auto,q_auto:good,w_900,c_limit');
+};
+
 export default function Insumos() {
   const { usuario, selectedLocal } = useAuth();
   const userRole = String(usuario?.rol || '').trim().toLowerCase();
@@ -119,8 +129,6 @@ export default function Insumos() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [lotesOpen, setLotesOpen] = useState(false);
-  const [lotesInsumo, setLotesInsumo] = useState(null);
 
   const [movOpen, setMovOpen] = useState(false);
   const [movimientos, setMovimientos] = useState([]);
@@ -191,7 +199,7 @@ export default function Insumos() {
       setInsumos(res.data || []);
     } catch (err) {
       if (requestSeq !== fetchInsumosSeqRef.current) return;
-      setError('No se pudieron cargar los insumos.');
+      setError('No se pudieron cargar los productos de bodega.');
     } finally {
       if (requestSeq === fetchInsumosSeqRef.current) {
         setLoading(false);
@@ -274,7 +282,7 @@ export default function Insumos() {
       await actualizarEstadoInsumo(insumoId, { activo });
       fetchInsumos();
     } catch (err) {
-      setError(err?.response?.data?.error || 'No se pudo actualizar el insumo.');
+      setError(err?.response?.data?.error || 'No se pudo actualizar el producto bodega.');
     }
   };
 
@@ -484,7 +492,7 @@ export default function Insumos() {
       setInfo(res.data?.mensaje || 'Clonado completado.');
       setCloneOpen(false);
     } catch (err) {
-      setError(err?.response?.data?.error || 'No se pudo clonar el insumo.');
+      setError(err?.response?.data?.error || 'No se pudo clonar el producto bodega.');
     } finally {
       setCloneLoading(false);
     }
@@ -592,19 +600,14 @@ export default function Insumos() {
     try {
       setDeleteLoading(true);
       await eliminarInsumo(deleteTarget._id);
-      setInfo('Insumo eliminado.');
+      setInfo('Producto bodega eliminado.');
       setDeleteTarget(null);
       fetchInsumos();
     } catch (err) {
-      setError(err?.response?.data?.error || 'No se pudo eliminar el insumo.');
+      setError(err?.response?.data?.error || 'No se pudo eliminar el producto bodega.');
     } finally {
       setDeleteLoading(false);
     }
-  };
-
-  const openLotes = (insumo) => {
-    setLotesInsumo(insumo);
-    setLotesOpen(true);
   };
 
   const openMovimientos = async (insumo) => {
@@ -638,7 +641,7 @@ export default function Insumos() {
       setMovFechas([]);
       setMovOpen(true);
     } catch (err) {
-      console.error('Error al cargar movimientos/lotes:', err);
+      console.error('Error al cargar movimientos:', err);
       setError('No se pudieron cargar los movimientos.');
     }
   };
@@ -652,9 +655,8 @@ export default function Insumos() {
     return movimientos.filter((mov) => {
       if (movTab && mov.tipo !== movTab) return false;
       if (texto) {
-        const lote = (mov.lote || '').toLowerCase();
         const nota = (mov.nota || '').toLowerCase();
-        if (!lote.includes(texto) && !nota.includes(texto)) return false;
+        if (!nota.includes(texto)) return false;
       }
       if (inicioDate && finDate) {
         const fecha = new Date(mov.fecha);
@@ -779,7 +781,7 @@ export default function Insumos() {
         {info && <Alert severity="success" sx={{ mb: 2 }}>{info}</Alert>}
         {insumosStockBajo.length > 0 && (
           <Alert severity="warning" sx={{ mb: 2 }}>
-            Hay {insumosStockBajo.length} insumo(s) por debajo del stock mínimo.
+            Hay {insumosStockBajo.length} producto(s) de bodega por debajo del stock mínimo.
           </Alert>
         )}
         <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
@@ -801,7 +803,7 @@ export default function Insumos() {
               variant="outlined"
               onClick={openCategorias}
             >
-              Crear categorias de insumos
+              Crear categorias de stock bodega
             </Button>
           )}
         </Stack>
@@ -934,12 +936,14 @@ export default function Insumos() {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ width: 40 }} />
+                  <TableCell>Imagen</TableCell>
                   <TableCell>Nombre</TableCell>
                   <TableCell>Descripcion</TableCell>
-                  <TableCell>Unidad</TableCell>
-                  <TableCell sx={{ width: 74, minWidth: 74, maxWidth: 74, whiteSpace: 'nowrap' }}>Stock</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell>Color</TableCell>
+                  <TableCell>Talla</TableCell>
+                  <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>Existencia</TableCell>
                   <TableCell>Minimo</TableCell>
-                  <TableCell>Vencimiento</TableCell>
                   <TableCell>Obs.</TableCell>
                   <TableCell sx={{ fontSize: '0.75rem' }}>Ingresos/Egresos</TableCell>
                   <TableCell align="right" sx={{ fontSize: '0.75rem' }}>Acciones</TableCell>
@@ -950,14 +954,15 @@ export default function Insumos() {
                   <TableBody ref={provided.innerRef} {...provided.droppableProps}>
                     {insumosFiltrados.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={10} align="center">
-                          No hay insumos registrados.
+                        <TableCell colSpan={12} align="center">
+                          No hay productos de bodega registrados.
                         </TableCell>
                       </TableRow>
                     )}
                     {insumosPaginados.map((insumo, index) => {
                         const stockBajo = Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0);
                         const oculto = insumo.activo === false;
+                        const imagenUrl = obtenerImagenStockUrl(insumo);
                         const notaConteo = String(insumo.ultima_nota || '').trim();
                         const mostrarInfoConteo = Boolean(notaConteo) && esNotaConteoFisico(notaConteo);
                         const cantidadObservaciones = Array.isArray(insumo.observaciones) ? insumo.observaciones.length : 0;
@@ -996,6 +1001,26 @@ export default function Insumos() {
                                   </IconButton>
                                 </TableCell>
                                 <TableCell>
+                                  {imagenUrl ? (
+                                    <Box
+                                      component="img"
+                                      src={imagenUrl}
+                                      alt={insumo.nombre}
+                                      loading="lazy"
+                                      decoding="async"
+                                      sx={{
+                                        width: 52,
+                                        height: 52,
+                                        objectFit: 'cover',
+                                        borderRadius: 1,
+                                        bgcolor: '#f4f4f4'
+                                      }}
+                                    />
+                                  ) : (
+                                    <Typography variant="caption" color="text.secondary">Sin imagen</Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell>
                                   <Stack direction="row" spacing={1} alignItems="center">
                                     <Typography variant="body2">{insumo.nombre}</Typography>
                                     {mostrarInfoConteo && (
@@ -1030,8 +1055,10 @@ export default function Insumos() {
                                     </Typography>
                                   </Tooltip>
                                 </TableCell>
-                                <TableCell>{insumo.unidad}</TableCell>
-                                <TableCell sx={{ width: 74, minWidth: 74, maxWidth: 74, whiteSpace: 'nowrap' }}>
+                                <TableCell>{insumo.sku || '-'}</TableCell>
+                                <TableCell>{insumo.color || '-'}</TableCell>
+                                <TableCell>{insumo.talla || '-'}</TableCell>
+                                <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>
                                   <Chip
                                     size="small"
                                     color={stockBajo ? 'warning' : 'success'}
@@ -1045,11 +1072,6 @@ export default function Insumos() {
                                   />
                                 </TableCell>
                                 <TableCell>{Number(insumo.stock_minimo || 0)}</TableCell>
-                                <TableCell>
-                                  <Button size="small" onClick={() => openLotes(insumo)} sx={{ fontWeight: 400, color: '#6b7280' }}>
-                                    Ver lotes
-                                  </Button>
-                                </TableCell>
                                 <TableCell sx={{ whiteSpace: 'nowrap' }}>
                                   {(puedeGestionarObs || tieneObservaciones) ? (
                                     <Button
@@ -1102,7 +1124,7 @@ export default function Insumos() {
                                       onClick={() => openMovimientoTipo(insumo, 'salida')}
                                       sx={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem', minWidth: 'auto', px: 0.5 }}
                                     >
-                                      Conteo físico
+                                      Salida
                                     </Button>
                                   </Stack>
                                 </TableCell>
@@ -1177,7 +1199,7 @@ export default function Insumos() {
       />
 
       <Dialog open={alertOpen} onClose={() => setAlertOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Configurar alertas de insumos</DialogTitle>
+        <DialogTitle>Configurar alertas de stock bodega</DialogTitle>
         <DialogContent dividers>
           {alertLoading ? (
             <Typography color="text.secondary">Cargando usuarios...</Typography>
@@ -1220,7 +1242,7 @@ export default function Insumos() {
       </Dialog>
 
       <Dialog open={categoriaDialogOpen} onClose={() => setCategoriaDialogOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Categorias de insumos</DialogTitle>
+        <DialogTitle>Categorias de stock bodega</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <TextField
@@ -1382,7 +1404,7 @@ export default function Insumos() {
                 multiline
                 minRows={3}
                 disabled={obsSaving}
-                placeholder="Escribe una observacion para este insumo"
+                placeholder="Escribe una observacion para este producto de bodega"
               />
               <Stack direction="row" spacing={1} justifyContent="flex-end">
                 {obsEditId && (
@@ -1410,13 +1432,13 @@ export default function Insumos() {
       </Dialog>
 
       <Dialog open={cloneOpen} onClose={() => setCloneOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Clonar insumos</DialogTitle>
+        <DialogTitle>Clonar stock bodega</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Typography variant="body2" color="text.secondary">
               {cloneMode === 'all'
-                ? 'Se clonaran todos los insumos del local actual (sin lotes ni vencimientos).'
-                : `Se clonara el insumo "${cloneInsumo?.nombre || ''}" (sin lotes ni vencimientos).`}
+                ? 'Se clonaran todos los productos de bodega del local actual.'
+                : `Se clonara el producto de bodega "${cloneInsumo?.nombre || ''}".`}
             </Typography>
             <TextField
               select
@@ -1433,7 +1455,7 @@ export default function Insumos() {
                 ))}
             </TextField>
             <Typography variant="caption" color="text.secondary">
-              Si un insumo ya existe en el local destino, se omitira.
+              Si un producto de bodega ya existe en el local destino, se omitira.
             </Typography>
           </Stack>
         </DialogContent>
@@ -1446,10 +1468,10 @@ export default function Insumos() {
       </Dialog>
 
       <Dialog open={Boolean(deleteTarget)} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Eliminar insumo</DialogTitle>
+        <DialogTitle>Eliminar producto bodega</DialogTitle>
         <DialogContent dividers>
           <Typography>
-            Seguro que deseas eliminar el insumo "{deleteTarget?.nombre}"?
+            Seguro que deseas eliminar el producto bodega "{deleteTarget?.nombre}"?
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -1459,16 +1481,6 @@ export default function Insumos() {
           </Button>
         </DialogActions>
       </Dialog>
-
-      <LotesDialog
-        open={lotesOpen}
-        onClose={() => setLotesOpen(false)}
-        insumo={lotesInsumo}
-        isAdmin={isAdmin}
-        onError={setError}
-        onInfo={setInfo}
-        onRefreshInsumos={fetchInsumos}
-      />
 
       <MovimientoDialog
         open={movOpen}

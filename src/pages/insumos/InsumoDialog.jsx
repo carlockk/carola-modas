@@ -13,7 +13,6 @@ import {
 } from '@mui/material';
 import {
   crearInsumo,
-  crearLoteInsumo,
   editarInsumo,
   registrarMovimientoInsumo
 } from '../../services/api';
@@ -21,25 +20,16 @@ import {
 const emptyForm = {
   nombre: '',
   descripcion: '',
+  sku: '',
+  color: '',
+  talla: '',
+  imagen_url: '',
   unidad: 'unid',
   categoria: '',
   stock_minimo: '',
-  alerta_vencimiento_dias: '7',
   stock_inicial: '',
-  lote_inicial: '',
-  vencimiento_inicial: '',
-  lote_nuevo: '',
-  vencimiento_nuevo: '',
-  cantidad_nueva: '',
   stock_total_manual: ''
 };
-
-const unidades = [
-  { value: 'unid', label: 'Unidad' },
-  { value: 'kg', label: 'Kilogramo' },
-  { value: 'lt', label: 'Litro' },
-  { value: 'pack', label: 'Pack' }
-];
 
 export default function InsumoDialog({
   open,
@@ -52,6 +42,7 @@ export default function InsumoDialog({
   onSaved
 }) {
   const [form, setForm] = useState(emptyForm);
+  const [imagen, setImagen] = useState(null);
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState('');
 
@@ -63,21 +54,20 @@ export default function InsumoDialog({
       setForm({
         nombre: insumo.nombre || '',
         descripcion: insumo.descripcion || '',
+        sku: insumo.sku || '',
+        color: insumo.color || '',
+        talla: insumo.talla || '',
+        imagen_url: insumo.imagen_url || '',
         unidad: insumo.unidad || 'unid',
         categoria: insumo.categoria?._id || '',
         stock_minimo: insumo.stock_minimo ?? '',
-        alerta_vencimiento_dias: insumo.alerta_vencimiento_dias ?? '7',
         stock_inicial: '',
-        lote_inicial: '',
-        vencimiento_inicial: '',
-        lote_nuevo: '',
-        vencimiento_nuevo: '',
-        cantidad_nueva: '',
         stock_total_manual: insumo.stock_total ?? ''
       });
     } else {
       setForm(emptyForm);
     }
+    setImagen(null);
     setLocalError('');
   }, [open, insumo]);
 
@@ -90,35 +80,38 @@ export default function InsumoDialog({
       return;
     }
 
-    const payload = {
-      nombre: form.nombre.trim(),
-      descripcion: form.descripcion.trim(),
-      unidad: form.unidad,
-      categoria:
-        form.categoria && typeof form.categoria === 'object'
-          ? form.categoria._id
-          : form.categoria || null,
-      stock_minimo: form.stock_minimo === '' ? 0 : Number(form.stock_minimo),
-      alerta_vencimiento_dias:
-        form.alerta_vencimiento_dias === '' ? 7 : Number(form.alerta_vencimiento_dias),
-      ...(editingId && form.stock_total_manual !== ''
-        ? { stock_total: Number(form.stock_total_manual) }
-        : {})
-    };
+    if (form.imagen_url?.trim() && !/^https?:\/\/\S+$/i.test(form.imagen_url.trim())) {
+      const msg = 'La URL de imagen debe comenzar con http:// o https://';
+      setLocalError(msg);
+      onError?.(msg);
+      return;
+    }
+
+    const payload = new FormData();
+    payload.append('nombre', form.nombre.trim());
+    payload.append('descripcion', form.descripcion.trim());
+    payload.append('sku', form.sku.trim());
+    payload.append('color', form.color.trim());
+    payload.append('talla', form.talla.trim());
+    payload.append('imagen_url', form.imagen_url.trim());
+    payload.append('unidad', 'unid');
+    payload.append(
+      'categoria',
+      form.categoria && typeof form.categoria === 'object'
+        ? form.categoria._id
+        : form.categoria || ''
+    );
+    payload.append('stock_minimo', form.stock_minimo === '' ? '0' : String(Number(form.stock_minimo)));
+    if (editingId && form.stock_total_manual !== '') {
+      payload.append('stock_total', String(Number(form.stock_total_manual)));
+    }
+    if (imagen) payload.append('imagen', imagen);
 
     try {
       setSaving(true);
       if (editingId) {
-        const tieneLoteNuevo = form.lote_nuevo.trim() || form.vencimiento_nuevo;
         await editarInsumo(editingId, payload);
-        if (tieneLoteNuevo) {
-          await crearLoteInsumo(editingId, {
-            lote: form.lote_nuevo.trim() || undefined,
-            fecha_vencimiento: form.vencimiento_nuevo || undefined,
-            cantidad: form.cantidad_nueva === '' ? 0 : Number(form.cantidad_nueva)
-          });
-        }
-        onInfo?.('Insumo actualizado.');
+        onInfo?.('Producto bodega actualizado.');
       } else {
         const creado = await crearInsumo(payload);
         const stockInicial = Number(form.stock_inicial);
@@ -126,17 +119,15 @@ export default function InsumoDialog({
           await registrarMovimientoInsumo(creado.data._id, {
             tipo: 'entrada',
             cantidad: stockInicial,
-            lote: form.lote_inicial || undefined,
-            fecha_vencimiento: form.vencimiento_inicial || undefined,
             motivo: 'Stock inicial'
           });
         }
-        onInfo?.('Insumo creado.');
+        onInfo?.('Producto bodega creado.');
       }
       onClose?.();
       onSaved?.();
     } catch (err) {
-      const msg = err?.response?.data?.error || 'No se pudo guardar el insumo.';
+      const msg = err?.response?.data?.error || 'No se pudo guardar el producto bodega.';
       setLocalError(msg);
       onError?.(msg);
     } finally {
@@ -168,17 +159,63 @@ export default function InsumoDialog({
             minRows={2}
           />
           <TextField
-            select
-            label="Unidad"
-            value={form.unidad}
-            onChange={(e) => setForm((prev) => ({ ...prev, unidad: e.target.value }))}
-          >
-            {unidades.map((u) => (
-              <MenuItem key={u.value} value={u.value}>
-                {u.label}
-              </MenuItem>
-            ))}
-          </TextField>
+            label="Codigo SKU"
+            value={form.sku}
+            onChange={(e) => setForm((prev) => ({ ...prev, sku: e.target.value }))}
+          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Color"
+              value={form.color}
+              onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))}
+              fullWidth
+            />
+            <TextField
+              label="Talla"
+              value={form.talla}
+              onChange={(e) => setForm((prev) => ({ ...prev, talla: e.target.value }))}
+              fullWidth
+            />
+          </Stack>
+          {form.imagen_url && (
+            <Stack spacing={1} alignItems="flex-start">
+              <Typography variant="body2" color="text.secondary">Imagen actual</Typography>
+              <img
+                src={form.imagen_url}
+                alt="Producto bodega"
+                style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8 }}
+              />
+            </Stack>
+          )}
+          <Button variant="outlined" component="label">
+            Seleccionar imagen
+            <input
+              hidden
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                if (file && !file.type.startsWith('image/')) {
+                  const msg = 'Solo se permiten archivos de imagen.';
+                  setLocalError(msg);
+                  onError?.(msg);
+                  return;
+                }
+                setImagen(file);
+              }}
+            />
+          </Button>
+          {imagen && (
+            <Typography variant="body2" color="text.secondary">
+              Imagen seleccionada: {imagen.name}
+            </Typography>
+          )}
+          <TextField
+            label="URL de imagen (opcional)"
+            value={form.imagen_url}
+            onChange={(e) => setForm((prev) => ({ ...prev, imagen_url: e.target.value }))}
+            placeholder="https://..."
+          />
           <TextField
             select
             label="Categoria (opcional)"
@@ -198,64 +235,22 @@ export default function InsumoDialog({
             value={form.stock_minimo}
             onChange={(e) => setForm((prev) => ({ ...prev, stock_minimo: e.target.value }))}
           />
-          <TextField
-            label="Dias alerta vencimiento"
-            type="number"
-            value={form.alerta_vencimiento_dias}
-            onChange={(e) => setForm((prev) => ({ ...prev, alerta_vencimiento_dias: e.target.value }))}
-          />
           {editingId && (
-            <>
-              <TextField
-                label="Stock actual"
-                type="number"
-                value={form.stock_total_manual}
-                onChange={(e) => setForm((prev) => ({ ...prev, stock_total_manual: e.target.value }))}
-              />
-              <Typography variant="subtitle2" color="text.secondary">
-                Registrar lote (opcional)
-              </Typography>
-              <TextField
-                label="Lote"
-                value={form.lote_nuevo}
-                onChange={(e) => setForm((prev) => ({ ...prev, lote_nuevo: e.target.value }))}
-              />
-              <TextField
-                label="Fecha vencimiento"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={form.vencimiento_nuevo}
-                onChange={(e) => setForm((prev) => ({ ...prev, vencimiento_nuevo: e.target.value }))}
-              />
-              <TextField
-                label="Cantidad (opcional si defines lote/fecha)"
-                type="number"
-                value={form.cantidad_nueva}
-                onChange={(e) => setForm((prev) => ({ ...prev, cantidad_nueva: e.target.value }))}
-              />
-            </>
+            <TextField
+              label="Existencia actual"
+              type="number"
+              value={form.stock_total_manual}
+              onChange={(e) => setForm((prev) => ({ ...prev, stock_total_manual: e.target.value }))}
+              helperText="Tambien puedes ajustar la existencia usando entradas y salidas."
+            />
           )}
           {!editingId && (
-            <>
-              <TextField
-                label="Stock inicial (opcional)"
-                type="number"
-                value={form.stock_inicial}
-                onChange={(e) => setForm((prev) => ({ ...prev, stock_inicial: e.target.value }))}
-              />
-              <TextField
-                label="Lote inicial (opcional)"
-                value={form.lote_inicial}
-                onChange={(e) => setForm((prev) => ({ ...prev, lote_inicial: e.target.value }))}
-              />
-              <TextField
-                label="Vencimiento inicial (opcional)"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={form.vencimiento_inicial}
-                onChange={(e) => setForm((prev) => ({ ...prev, vencimiento_inicial: e.target.value }))}
-              />
-            </>
+            <TextField
+              label="Existencia inicial (opcional)"
+              type="number"
+              value={form.stock_inicial}
+              onChange={(e) => setForm((prev) => ({ ...prev, stock_inicial: e.target.value }))}
+            />
           )}
         </Stack>
       </DialogContent>

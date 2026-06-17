@@ -16,9 +16,6 @@ import { obtenerMovimientosInsumo, registrarMovimientoInsumo } from '../../servi
 const buildEmptyForm = (tipo) => ({
   tipo: tipo || 'entrada',
   cantidad: '',
-  loteId: '',
-  lote: '',
-  fecha_vencimiento: '',
   nota: ''
 });
 
@@ -54,44 +51,20 @@ export default function MovimientoDialog({
     let tipoFinal = form.tipo;
     let cantidadFinal = cantidad;
     let notaFinal = form.nota || '';
-    let loteId = form.loteId || undefined;
-    let lote = form.lote || undefined;
-    let fecha = form.fecha_vencimiento || undefined;
 
-    if (form.tipo === 'salida') {
-      const diferencia = Math.round((stockActual - cantidad) * 1000) / 1000;
-      if (diferencia === 0) {
-        onInfo?.('El conteo coincide con el stock. No se registró movimiento.');
-        return;
-      }
-      if (diferencia > 0) {
-        tipoFinal = 'salida';
-        cantidadFinal = diferencia;
-      } else {
-        tipoFinal = 'entrada';
-        cantidadFinal = Math.abs(diferencia);
-      }
-      const ajusteTexto = diferencia > 0
-        ? `Ajuste aplicado: -${Math.abs(diferencia)}.`
-        : `Ajuste aplicado: +${Math.abs(diferencia)}.`;
-      const notaAuto = `Conteo físico. Stock final: ${cantidad}. ${ajusteTexto}`;
-      notaFinal = notaFinal ? `${notaFinal} | ${notaAuto}` : notaAuto;
-      loteId = undefined;
-      lote = undefined;
-      fecha = undefined;
-    } else {
-      if (cantidadFinal <= 0) {
-        onError?.('Ingresa una cantidad válida.');
-        return;
-      }
+    if (cantidadFinal <= 0) {
+      onError?.('Ingresa una cantidad válida.');
+      return;
+    }
+
+    if (form.tipo === 'salida' && cantidadFinal > stockActual) {
+      onError?.('La salida supera la existencia disponible.');
+      return;
     }
 
     const payload = {
       tipo: tipoFinal,
       cantidad: cantidadFinal,
-      loteId,
-      lote,
-      fecha_vencimiento: fecha,
       nota: notaFinal || undefined
     };
     try {
@@ -113,7 +86,7 @@ export default function MovimientoDialog({
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>
         {tipoFijo && tipoInicial === 'salida'
-          ? `Conteo físico - ${insumo?.nombre || ''}`
+          ? `Salida - ${insumo?.nombre || ''}`
           : `Movimientos - ${insumo?.nombre || ''}`}
       </DialogTitle>
       <DialogContent dividers>
@@ -136,28 +109,12 @@ export default function MovimientoDialog({
             />
           )}
           <TextField
-            label={form.tipo === 'salida' ? 'Existencia física' : 'Cantidad'}
+            label={form.tipo === 'salida' ? 'Cantidad a descontar' : 'Cantidad a ingresar'}
             type="number"
             value={form.cantidad}
             onChange={(e) => setForm((prev) => ({ ...prev, cantidad: e.target.value }))}
-            helperText={form.tipo === 'salida' ? `Stock actual: ${Number(insumo?.stock_total || 0)}` : ''}
+            helperText={form.tipo === 'salida' ? `Existencia actual: ${Number(insumo?.stock_total || 0)}` : ''}
           />
-          {form.tipo === 'entrada' && (
-            <>
-              <TextField
-                label="Lote (opcional)"
-                value={form.lote}
-                onChange={(e) => setForm((prev) => ({ ...prev, lote: e.target.value }))}
-              />
-              <TextField
-                label="Fecha vencimiento (opcional)"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={form.fecha_vencimiento}
-                onChange={(e) => setForm((prev) => ({ ...prev, fecha_vencimiento: e.target.value }))}
-              />
-            </>
-          )}
           <TextField
             label="Nota (opcional)"
             value={form.nota}

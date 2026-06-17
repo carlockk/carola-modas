@@ -99,7 +99,7 @@ export default function HistorialDialog({
   const handleEliminarHistorial = async () => {
     if (!isSuperadmin) return;
     const mensaje = histInsumoId
-      ? 'Seguro que deseas eliminar todo el historial de este insumo?'
+      ? 'Seguro que deseas eliminar todo el historial de este producto de bodega?'
       : 'Seguro que deseas eliminar todo el historial de movimientos?';
     const confirmar = window.confirm(mensaje);
     if (!confirmar) return;
@@ -121,9 +121,18 @@ export default function HistorialDialog({
     return histMovimientos.filter((mov) => {
       if (histTab && mov.tipo !== histTab) return false;
       if (texto) {
-        const lote = (mov.lote || '').toLowerCase();
         const nota = (mov.nota || '').toLowerCase();
-        if (!lote.includes(texto) && !nota.includes(texto)) return false;
+        const producto = (mov.insumo?.nombre || '').toLowerCase();
+        const sku = (mov.insumo?.sku || '').toLowerCase();
+        const color = (mov.insumo?.color || '').toLowerCase();
+        const talla = (mov.insumo?.talla || '').toLowerCase();
+        if (
+          !nota.includes(texto) &&
+          !producto.includes(texto) &&
+          !sku.includes(texto) &&
+          !color.includes(texto) &&
+          !talla.includes(texto)
+        ) return false;
       }
       if (inicioDate && finDate) {
         const fecha = new Date(mov.fecha);
@@ -156,11 +165,11 @@ export default function HistorialDialog({
         <Stack spacing={2} sx={{ mt: 1 }}>
           <TextField
             select
-            label="Insumo"
+            label="Producto bodega"
             value={histInsumoId}
             onChange={(e) => setHistInsumoId(e.target.value)}
           >
-            <MenuItem value="">Todos los insumos</MenuItem>
+            <MenuItem value="">Todos los productos bodega</MenuItem>
             {insumos.map((insumo) => (
               <MenuItem key={insumo._id} value={insumo._id}>
                 {insumo.nombre}
@@ -178,12 +187,12 @@ export default function HistorialDialog({
               onClick={handleEliminarHistorial}
               sx={{ alignSelf: 'flex-start' }}
             >
-              {histInsumoId ? 'Eliminar historial del insumo' : 'Eliminar todo el historial'}
+              {histInsumoId ? 'Eliminar historial del producto' : 'Eliminar todo el historial'}
             </Button>
           )}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField
-              label="Buscar por lote/nota"
+              label="Buscar por producto/nota"
               value={histBusqueda}
               onChange={(e) => setHistBusqueda(e.target.value)}
               size="small"
@@ -226,7 +235,10 @@ export default function HistorialDialog({
               <TableHead>
                 <TableRow>
                   <TableCell>Fecha</TableCell>
-                  {histInsumoId === '' && <TableCell>Insumo</TableCell>}
+                  <TableCell>Producto bodega</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell>Color</TableCell>
+                  <TableCell>Talla</TableCell>
                   <TableCell>Tipo</TableCell>
                   <TableCell>Cantidad</TableCell>
                   <TableCell>Nota</TableCell>
@@ -237,9 +249,10 @@ export default function HistorialDialog({
                 {historialFiltrado.map((mov) => (
                   <TableRow key={mov._id}>
                     <TableCell>{new Date(mov.fecha).toLocaleString()}</TableCell>
-                    {histInsumoId === '' && (
-                      <TableCell>{mov.insumo?.nombre || '-'}</TableCell>
-                    )}
+                    <TableCell>{mov.insumo?.nombre || '-'}</TableCell>
+                    <TableCell>{mov.insumo?.sku || '-'}</TableCell>
+                    <TableCell>{mov.insumo?.color || '-'}</TableCell>
+                    <TableCell>{mov.insumo?.talla || '-'}</TableCell>
                     <TableCell>{mov.tipo}</TableCell>
                     <TableCell>{mov.cantidad}</TableCell>
                     <TableCell>

@@ -144,6 +144,7 @@ export default function Insumos() {
   const [movBusqueda, setMovBusqueda] = useState('');
   const [movFechas, setMovFechas] = useState([]);
   const [histOpen, setHistOpen] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
   const [soloBajoMinimo, setSoloBajoMinimo] = useState(false);
   const [mostrarInsumosOcultos, setMostrarInsumosOcultos] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
@@ -277,6 +278,7 @@ export default function Insumos() {
     setObsInput('');
     setObsLeidosMap({});
     setVisibleCount(50);
+    setBusqueda('');
     setImportOpen(false);
     setImportProductoIds([]);
     setSelectionMode(false);
@@ -657,15 +659,28 @@ export default function Insumos() {
   const handleOrdenar = async (result) => {
     if (!result.destination) return;
     if (!isAdmin) return;
-    const items = Array.from(insumos);
-    const [reordenado] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reordenado);
+    const visibles = Array.from(insumosFiltrados);
+    const [reordenado] = visibles.splice(result.source.index, 1);
+    visibles.splice(result.destination.index, 0, reordenado);
+
+    const visiblesIds = new Set(visibles.map((item) => item._id));
+    let visibleIndex = 0;
+    const items = insumos.map((item) => {
+      if (!visiblesIds.has(item._id)) return item;
+      const siguiente = visibles[visibleIndex];
+      visibleIndex += 1;
+      return siguiente;
+    });
+
+    const ordenIds = items.map((item) => item._id);
+    const prevItems = insumos;
     setInsumos(items);
     try {
       setOrdenando(true);
-      await actualizarOrdenInsumos({ orden: items.map((i) => i._id) });
+      await actualizarOrdenInsumos({ orden: ordenIds });
       setInfo('Orden actualizado.');
     } catch (err) {
+      setInsumos(prevItems);
       setError(err?.response?.data?.error || 'No se pudo actualizar el orden.');
     } finally {
       setOrdenando(false);
@@ -833,8 +848,31 @@ export default function Insumos() {
     });
   }, [movimientos, movTab, movBusqueda, movFechas]);
 
+  const busquedaNormalizada = useMemo(
+    () => normalizarTexto(busqueda),
+    [busqueda]
+  );
+
   const insumosFiltrados = useMemo(() => {
     return insumos.filter((insumo) => {
+      if (busquedaNormalizada) {
+        const texto = [
+          insumo.nombre,
+          insumo.descripcion,
+          insumo.sku,
+          insumo.color,
+          insumo.talla,
+          insumo.categoria?.nombre,
+          insumo.ultima_nota
+        ]
+          .map((valor) => normalizarTexto(valor))
+          .join(' ');
+
+        if (!texto.includes(busquedaNormalizada)) {
+          return false;
+        }
+      }
+
       if (soloBajoMinimo) {
         if (Number(insumo.stock_total || 0) > Number(insumo.stock_minimo || 0)) {
           return false;
@@ -844,11 +882,11 @@ export default function Insumos() {
       if (tabCategoria === 'sin') return !insumo.categoria;
       return insumo.categoria?._id === tabCategoria;
     });
-  }, [insumos, soloBajoMinimo, tabCategoria]);
+  }, [insumos, busquedaNormalizada, soloBajoMinimo, tabCategoria]);
 
   useEffect(() => {
     setVisibleCount(50);
-  }, [soloBajoMinimo, tabCategoria, mostrarInsumosOcultos, insumos.length]);
+  }, [busquedaNormalizada, soloBajoMinimo, tabCategoria, mostrarInsumosOcultos, insumos.length]);
 
   useEffect(() => {
     if (visibleCount >= insumosFiltrados.length) return;
@@ -872,7 +910,7 @@ export default function Insumos() {
   );
 
   return (
-    <Box sx={{ mt: 2, px: 1 }}>
+    <Box sx={{ mt: 2, px: 0.5 }}>
       <Paper
         elevation={0}
         sx={{
@@ -961,7 +999,28 @@ export default function Insumos() {
             Hay {insumosStockBajo.length} producto(s) de bodega por debajo del stock mínimo.
           </Alert>
         )}
-        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1}
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+          sx={{ mb: 2 }}
+        >
+          <TextField
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por nombre, SKU, color, talla, categoria..."
+            size="small"
+            sx={{ minWidth: { xs: '100%', sm: 320 } }}
+            InputProps={{
+              startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+            }}
+          />
+          <Typography variant="body2" color="text.secondary">
+            {insumosFiltrados.length} de {insumos.length} producto(s)
+          </Typography>
+        </Stack>
+
+        <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
           <Button
             variant={soloBajoMinimo ? 'contained' : 'outlined'}
             color="warning"
@@ -979,6 +1038,7 @@ export default function Insumos() {
             <Button
               variant="outlined"
               onClick={openCategorias}
+              sx={{ mt: { xs: 1, sm: 0 } }}
             >
               Crear categorias de stock bodega
             </Button>

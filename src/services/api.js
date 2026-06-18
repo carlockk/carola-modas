@@ -250,6 +250,7 @@ export const obtenerInsumos = (params) => API.get('/insumos', { params });
 export const crearInsumo = (data) => API.post('/insumos', data);
 export const editarInsumo = (id, data) => API.put(`/insumos/${id}`, data);
 export const eliminarInsumo = (id) => API.delete(`/insumos/${id}`);
+export const eliminarInsumosMasivo = (data) => API.delete('/insumos', { data });
 export const actualizarEstadoInsumo = (id, data) => API.put(`/insumos/${id}/estado`, data);
 export const actualizarNotaInsumo = (id, data) => API.put(`/insumos/${id}/nota`, data);
 export const obtenerObservacionesInsumo = (id) => API.get(`/insumos/${id}/observaciones`);
@@ -261,6 +262,7 @@ export const eliminarObservacionInsumo = (id, obsId) =>
 export const clonarInsumos = (data) => API.post('/insumos/clonar', data);
 export const importarProductosABodega = (data) => API.post('/insumos/importar-productos', data);
 export const actualizarOrdenInsumos = (data) => API.put('/insumos/orden', data);
+export const moverCategoriaInsumos = (data) => API.put('/insumos/categoria-masiva', data);
 export const obtenerCategoriasInsumo = () => API.get('/insumo-categorias');
 export const crearCategoriaInsumo = (data) => API.post('/insumo-categorias', data);
 export const editarCategoriaInsumo = (id, data) => API.put(`/insumo-categorias/${id}`, data);

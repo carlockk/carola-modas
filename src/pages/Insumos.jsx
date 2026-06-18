@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogActions,
@@ -43,6 +44,7 @@ import HistorialDialog from './insumos/HistorialDialog';
 import {
   obtenerInsumos,
   eliminarInsumo,
+  eliminarInsumosMasivo,
   actualizarEstadoInsumo,
   obtenerObservacionesInsumo,
   crearObservacionInsumo,
@@ -57,6 +59,7 @@ import {
   clonarInsumos,
   obtenerProductos,
   importarProductosABodega,
+  moverCategoriaInsumos,
   actualizarOrdenInsumos,
   obtenerCategoriasInsumo,
   crearCategoriaInsumo,
@@ -158,6 +161,11 @@ export default function Insumos() {
   const [importOpen, setImportOpen] = useState(false);
   const [importProductoIds, setImportProductoIds] = useState([]);
   const [importLoading, setImportLoading] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedInsumoIds, setSelectedInsumoIds] = useState([]);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [moveCategoriaTarget, setMoveCategoriaTarget] = useState('');
+  const [moveLoading, setMoveLoading] = useState(false);
   const [ordenando, setOrdenando] = useState(false);
   const [categoriasInsumo, setCategoriasInsumo] = useState([]);
   const [categoriaDialogOpen, setCategoriaDialogOpen] = useState(false);
@@ -271,6 +279,10 @@ export default function Insumos() {
     setVisibleCount(50);
     setImportOpen(false);
     setImportProductoIds([]);
+    setSelectionMode(false);
+    setSelectedInsumoIds([]);
+    setMoveDialogOpen(false);
+    setMoveCategoriaTarget('');
   }, [selectedLocal?._id]);
 
   useEffect(() => {
@@ -470,6 +482,92 @@ export default function Insumos() {
     }
   };
 
+  const toggleSelectionMode = () => {
+    setSelectionMode((prev) => {
+      if (prev) {
+        setSelectedInsumoIds([]);
+      }
+      return !prev;
+    });
+  };
+
+  const toggleSelectInsumo = (insumoId) => {
+    if (!selectionMode) return;
+    setSelectedInsumoIds((prev) =>
+      prev.includes(insumoId)
+        ? prev.filter((id) => id !== insumoId)
+        : [...prev, insumoId]
+    );
+  };
+
+  const handleSeleccionarTodos = () => {
+    setSelectedInsumoIds(insumosFiltrados.map((item) => item._id));
+  };
+
+  const handleLimpiarSeleccion = () => {
+    setSelectedInsumoIds([]);
+  };
+
+  const openMoveDialog = () => {
+    if (selectedInsumoIds.length === 0) {
+      setError('Selecciona al menos un producto bodega.');
+      return;
+    }
+    setMoveCategoriaTarget('');
+    setMoveDialogOpen(true);
+  };
+
+  const handleEditarSeleccion = () => {
+    if (selectedInsumoIds.length !== 1) {
+      setError('Debes seleccionar un solo producto bodega para editar.');
+      return;
+    }
+    const insumo = insumos.find((item) => item._id === selectedInsumoIds[0]);
+    if (!insumo) {
+      setError('Producto bodega no encontrado.');
+      return;
+    }
+    setSelectionMode(false);
+    setSelectedInsumoIds([]);
+    openEdit(insumo);
+  };
+
+  const confirmDeleteSelection = () => {
+    if (selectedInsumoIds.length === 0) {
+      setError('Selecciona al menos un producto bodega.');
+      return;
+    }
+
+    const seleccionados = insumos.filter((item) => selectedInsumoIds.includes(item._id));
+    setDeleteTarget({
+      ids: [...selectedInsumoIds],
+      cantidad: selectedInsumoIds.length,
+      nombre: selectedInsumoIds.length === 1 ? seleccionados[0]?.nombre || '' : ''
+    });
+    setError('');
+    setInfo('');
+  };
+
+  const handleMoverCategoria = async () => {
+    try {
+      setMoveLoading(true);
+      const res = await moverCategoriaInsumos({
+        ids: selectedInsumoIds,
+        categoria: moveCategoriaTarget || null
+      });
+      setInfo(res.data?.mensaje || 'Categoria actualizada.');
+      setMoveDialogOpen(false);
+      setSelectionMode(false);
+      setSelectedInsumoIds([]);
+      setMoveCategoriaTarget('');
+      await fetchInsumos();
+    } catch (err) {
+      setError(err?.response?.data?.error || 'No se pudieron mover los productos de bodega.');
+    } finally {
+      setMoveLoading(false);
+    }
+  };
+
   const openAlertas = async () => {
     setAlertOpen(true);
     setAlertLoading(true);
@@ -648,7 +746,11 @@ export default function Insumos() {
   };
 
   const confirmDelete = (insumo) => {
-    setDeleteTarget(insumo);
+    setDeleteTarget({
+      ids: [insumo._id],
+      cantidad: 1,
+      nombre: insumo.nombre || ''
+    });
     setError('');
     setInfo('');
   };
@@ -657,8 +759,15 @@ export default function Insumos() {
     if (!deleteTarget) return;
     try {
       setDeleteLoading(true);
-      await eliminarInsumo(deleteTarget._id);
-      setInfo('Producto bodega eliminado.');
+      if ((deleteTarget.ids || []).length > 1) {
+        await eliminarInsumosMasivo({ ids: deleteTarget.ids });
+        setInfo('Productos de bodega eliminados.');
+        setSelectionMode(false);
+        setSelectedInsumoIds([]);
+      } else {
+        await eliminarInsumo(deleteTarget.ids?.[0]);
+        setInfo('Producto bodega eliminado.');
+      }
       setDeleteTarget(null);
       fetchInsumos();
     } catch (err) {
@@ -792,6 +901,13 @@ export default function Insumos() {
               <Button variant="outlined" onClick={openImportDialog}>
                 Importar desde productos
               </Button>
+              <Button
+                variant={selectionMode ? 'contained' : 'outlined'}
+                color={selectionMode ? 'secondary' : 'primary'}
+                onClick={toggleSelectionMode}
+              >
+                {selectionMode ? 'Cancelar seleccion' : 'Seleccionar'}
+              </Button>
               {isSuperadmin && (
                 <>
                   <Button
@@ -868,6 +984,39 @@ export default function Insumos() {
             </Button>
           )}
         </Stack>
+
+        {selectionMode && (
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+            <Button variant="outlined" onClick={handleSeleccionarTodos}>
+              Todos
+            </Button>
+            <Button variant="outlined" onClick={handleLimpiarSeleccion}>
+              Limpiar
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={handleEditarSeleccion}
+              disabled={selectedInsumoIds.length !== 1}
+            >
+              Editar
+            </Button>
+            <Button
+              variant="contained"
+              onClick={openMoveDialog}
+              disabled={selectedInsumoIds.length === 0}
+            >
+              Mover a ({selectedInsumoIds.length})
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={confirmDeleteSelection}
+              disabled={selectedInsumoIds.length === 0}
+            >
+              Eliminar ({selectedInsumoIds.length})
+            </Button>
+          </Stack>
+        )}
 
         {categoriasInsumo.length > 0 && (
           <Box sx={{ mb: 2 }}>
@@ -997,6 +1146,7 @@ export default function Insumos() {
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ width: 40 }} />
+                  {selectionMode && <TableCell sx={{ width: 52 }}>Sel.</TableCell>}
                   <TableCell>Imagen</TableCell>
                   <TableCell>Nombre</TableCell>
                   <TableCell>Descripcion</TableCell>
@@ -1015,7 +1165,7 @@ export default function Insumos() {
                   <TableBody ref={provided.innerRef} {...provided.droppableProps}>
                     {insumosFiltrados.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={12} align="center">
+                        <TableCell colSpan={selectionMode ? 13 : 12} align="center">
                           No hay productos de bodega registrados.
                         </TableCell>
                       </TableRow>
@@ -1023,6 +1173,7 @@ export default function Insumos() {
                     {insumosPaginados.map((insumo, index) => {
                         const stockBajo = Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0);
                         const oculto = insumo.activo === false;
+                        const seleccionado = selectedInsumoIds.includes(insumo._id);
                         const imagenUrl = obtenerImagenStockUrl(insumo);
                         const notaConteo = String(insumo.ultima_nota || '').trim();
                         const mostrarInfoConteo = Boolean(notaConteo) && esNotaConteoFisico(notaConteo);
@@ -1038,29 +1189,50 @@ export default function Insumos() {
                             key={insumo._id}
                             draggableId={insumo._id}
                             index={index}
-                            isDragDisabled={!isAdmin || ordenando || insumosPaginados.length < insumosFiltrados.length}
+                            isDragDisabled={
+                              selectionMode || !isAdmin || ordenando || insumosPaginados.length < insumosFiltrados.length
+                            }
                           >
                             {(draggableProvided) => (
                               <TableRow
                                 ref={draggableProvided.innerRef}
                                 {...draggableProvided.draggableProps}
+                                hover={selectionMode}
+                                onClick={() => {
+                                  if (!selectionMode) return;
+                                  toggleSelectInsumo(insumo._id);
+                                }}
                                 sx={
-                                  oculto
-                                    ? { backgroundColor: 'rgba(148, 163, 184, 0.18)' }
-                                    : stockBajo
-                                      ? { backgroundColor: 'rgba(251, 191, 36, 0.15)' }
-                                      : {}
+                                  seleccionado
+                                    ? {
+                                        backgroundColor: 'rgba(59, 130, 246, 0.14)',
+                                        cursor: 'pointer'
+                                      }
+                                    : oculto
+                                      ? { backgroundColor: 'rgba(148, 163, 184, 0.18)', cursor: selectionMode ? 'pointer' : 'default' }
+                                      : stockBajo
+                                        ? { backgroundColor: 'rgba(251, 191, 36, 0.15)', cursor: selectionMode ? 'pointer' : 'default' }
+                                        : { cursor: selectionMode ? 'pointer' : 'default' }
                                 }
                               >
                                 <TableCell sx={{ width: 40 }}>
                                   <IconButton
                                     size="small"
                                     {...draggableProvided.dragHandleProps}
-                                    disabled={!isAdmin || ordenando}
+                                    disabled={selectionMode || !isAdmin || ordenando}
                                   >
                                     <DragIndicatorIcon fontSize="small" />
                                   </IconButton>
                                 </TableCell>
+                                {selectionMode && (
+                                  <TableCell sx={{ width: 52 }}>
+                                    <Checkbox
+                                      checked={seleccionado}
+                                      onChange={() => toggleSelectInsumo(insumo._id)}
+                                      onClick={(event) => event.stopPropagation()}
+                                    />
+                                  </TableCell>
+                                )}
                                 <TableCell>
                                   {imagenUrl ? (
                                     <Box
@@ -1191,17 +1363,17 @@ export default function Insumos() {
                                 </TableCell>
                                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                                   <Stack direction="row" spacing={0.5} justifyContent="flex-end" sx={{ flexWrap: 'nowrap' }}>
-                                    {puedeEditar && (
+                                    {!selectionMode && puedeEditar && (
                                       <IconButton size="small" onClick={() => openEdit(insumo)}>
                                         <EditIcon fontSize="small" />
                                       </IconButton>
                                     )}
-                                    {isAdmin && (
+                                    {!selectionMode && isAdmin && (
                                       <IconButton size="small" onClick={() => confirmDelete(insumo)} color="error">
                                         <DeleteIcon fontSize="small" />
                                       </IconButton>
                                     )}
-                                    {isAdmin && !oculto && (
+                                    {!selectionMode && isAdmin && !oculto && (
                                       <Tooltip title="Ocultar" arrow>
                                         <IconButton
                                           size="small"
@@ -1211,7 +1383,7 @@ export default function Insumos() {
                                         </IconButton>
                                       </Tooltip>
                                     )}
-                                    {isSuperadmin && !oculto && (
+                                    {!selectionMode && isSuperadmin && !oculto && (
                                       <Tooltip title="Clonar" arrow>
                                         <IconButton
                                           size="small"
@@ -1221,7 +1393,7 @@ export default function Insumos() {
                                         </IconButton>
                                       </Tooltip>
                                     )}
-                                    {isAdmin && mostrarInsumosOcultos && oculto && (
+                                    {!selectionMode && isAdmin && mostrarInsumosOcultos && oculto && (
                                       <Tooltip title="Restaurar" arrow>
                                         <IconButton
                                           size="small"
@@ -1302,6 +1474,37 @@ export default function Insumos() {
               {importLoading ? 'Importando...' : 'Importar seleccionados'}
             </Button>
           </Stack>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={moveDialogOpen} onClose={() => setMoveDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Mover a categoria</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Se moveran {selectedInsumoIds.length} producto(s) de bodega a la categoria que elijas.
+            </Typography>
+            <TextField
+              select
+              label="Categoria destino"
+              value={moveCategoriaTarget}
+              onChange={(e) => setMoveCategoriaTarget(e.target.value)}
+              helperText="Tambien puedes moverlos a Sin categoria."
+            >
+              <MenuItem value="">Sin categoria</MenuItem>
+              {categoriasInsumo.map((cat) => (
+                <MenuItem key={cat._id} value={cat._id}>
+                  {cat.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMoveDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleMoverCategoria} disabled={moveLoading}>
+            {moveLoading ? 'Moviendo...' : 'Aceptar'}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -1578,7 +1781,9 @@ export default function Insumos() {
         <DialogTitle>Eliminar producto bodega</DialogTitle>
         <DialogContent dividers>
           <Typography>
-            Seguro que deseas eliminar el producto bodega "{deleteTarget?.nombre}"?
+            {deleteTarget?.cantidad > 1
+              ? `Seguro que deseas eliminar ${deleteTarget?.cantidad || 0} productos de bodega seleccionados?`
+              : `Seguro que deseas eliminar el producto bodega "${deleteTarget?.nombre || ''}"?`}
           </Typography>
         </DialogContent>
         <DialogActions>

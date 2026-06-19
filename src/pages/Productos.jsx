@@ -36,6 +36,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 
 import {
   obtenerProductos,
+  obtenerInsumos,
   eliminarProducto,
   obtenerCategorias,
   obtenerProductosBase,
@@ -79,6 +80,7 @@ export default function Productos() {
   const puedeEliminar = usuario?.rol !== 'cajero';
   const esSuperadmin = usuario?.rol === 'superadmin';
   const [productos, setProductos] = useState([]);
+  const [insumosBodega, setInsumosBodega] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [openConfirm, setOpenConfirm] = useState(false);
@@ -140,9 +142,10 @@ export default function Productos() {
   };
 
   const cargarDatos = async () => {
-    const [resProd, resCat] = await Promise.all([
+    const [resProd, resCat, resInsumos] = await Promise.all([
       obtenerProductos(),
-      obtenerCategorias()
+      obtenerCategorias(),
+      obtenerInsumos()
     ]);
 
     const categoriasConEtiqueta = buildCategoryLabelMap(resCat.data || []);
@@ -153,6 +156,7 @@ export default function Productos() {
 
     setProductos(productosOrdenados);
     setCategorias(categoriasConEtiqueta);
+    setInsumosBodega(Array.isArray(resInsumos.data) ? resInsumos.data : []);
   };
 
   useEffect(() => {
@@ -435,6 +439,22 @@ export default function Productos() {
 
   const handleCerrarImagen = () => setImagenAmpliada(null);
 
+  const stockBodegaMap = useMemo(() => {
+    const map = new Map();
+
+    insumosBodega.forEach((insumo) => {
+      const productoId = String(insumo?.producto_relacionado || '').trim();
+      const varianteId = String(insumo?.variante_relacionada || '').trim();
+      if (!productoId) return;
+      map.set(`${productoId}::${varianteId}`, Number(insumo?.stock_total) || 0);
+    });
+
+    return map;
+  }, [insumosBodega]);
+
+  const obtenerStockBodega = (productoId, varianteId = '') =>
+    stockBodegaMap.get(`${String(productoId || '')}::${String(varianteId || '')}`) ?? 0;
+
   const busquedaNormalizada = useMemo(
     () => busqueda.toLowerCase().trim(),
     [busqueda]
@@ -601,6 +621,11 @@ export default function Productos() {
                     <Typography variant="body2">
                       Stock: {stockTotal === null ? 'No controlado' : stockTotal}
                     </Typography>
+                    {!hayVariantes && (
+                      <Typography variant="body2" color="text.secondary">
+                        Bodega: {obtenerStockBodega(prod._id)}
+                      </Typography>
+                    )}
                     <Typography fontWeight={800}>
                       ${prod.precio.toLocaleString('es-CL')}
                     </Typography>
@@ -634,7 +659,8 @@ export default function Productos() {
                               {[vari.color, vari.talla].filter(Boolean).join(' / ') || 'Sin atributos'}
                             </Typography>
                             <Typography variant="caption" color="text.secondary" display="block">
-                              Stock: {Number(vari.stock) || 0}
+                              {`Stock venta: ${Number(vari.stock) || 0}`}
+                              {` · Stock bodega: ${obtenerStockBodega(prod._id, vari._id)}`}
                               {vari.precio ? ` · $${vari.precio.toLocaleString('es-CL')}` : ''}
                             </Typography>
                           </Box>
@@ -731,11 +757,16 @@ export default function Productos() {
                           </Button>
                         </Stack>
                       ) : (
-                        <Typography>
-                          {stockTotal === null
-                            ? 'No controlado'
-                            : stockTotal}
-                        </Typography>
+                        <Stack spacing={0.25}>
+                          <Typography>
+                            {stockTotal === null
+                              ? 'No controlado'
+                              : stockTotal}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Bodega: {obtenerStockBodega(prod._id)}
+                          </Typography>
+                        </Stack>
                       )}
                     </TableCell>
 
@@ -828,7 +859,8 @@ export default function Productos() {
                                 <TableRow>
                                   <TableCell>Nombre</TableCell>
                                   <TableCell>Color / Talla</TableCell>
-                                  <TableCell align="right">Stock</TableCell>
+                                  <TableCell align="right">Stock venta</TableCell>
+                                  <TableCell align="right">Stock bodega</TableCell>
                                   <TableCell align="right">Precio</TableCell>
                                 </TableRow>
                               </TableHead>
@@ -846,6 +878,9 @@ export default function Productos() {
                                     </TableCell>
                                     <TableCell align="right">
                                       {Number(vari.stock) || 0}
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      {obtenerStockBodega(prod._id, vari._id)}
                                     </TableCell>
                                     <TableCell align="right">
                                       {vari.precio
@@ -1154,7 +1189,8 @@ export default function Productos() {
                 <TableRow>
                   <TableCell>Variante</TableCell>
                   <TableCell>Color / Talla</TableCell>
-                  <TableCell align="right">Stock</TableCell>
+                  <TableCell align="right">Stock venta</TableCell>
+                  <TableCell align="right">Stock bodega</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -1175,6 +1211,9 @@ export default function Productos() {
                     </TableCell>
                     <TableCell align="right">
                       {Number(vari.stock) || 0}
+                    </TableCell>
+                    <TableCell align="right">
+                      {obtenerStockBodega(productoStockModal._id, vari._id)}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -446,62 +446,56 @@ export default function Productos() {
 
   const handleCerrarImagen = () => setImagenAmpliada(null);
 
-  const stockBodegaMap = useMemo(() => {
-    const map = new Map();
-
-    insumosBodega.forEach((insumo) => {
-      const productoRelacionado =
-        typeof insumo?.producto_relacionado === 'object'
-          ? insumo?.producto_relacionado?._id || ''
-          : insumo?.producto_relacionado || '';
-      const varianteRelacionada =
-        typeof insumo?.variante_relacionada === 'object'
-          ? insumo?.variante_relacionada?._id || ''
-          : insumo?.variante_relacionada || '';
-      const productoId = String(productoRelacionado || '').trim();
-      const varianteId = String(varianteRelacionada || '').trim();
-      const stockActual = Number(insumo?.stock_total) || 0;
-
-      if (productoId) {
-        const key = `${productoId}::${varianteId}`;
-        map.set(key, (map.get(key) || 0) + stockActual);
-        return;
-      }
-
-      const nombre = normalizarTexto(insumo?.nombre);
-      const sku = normalizarTexto(insumo?.sku);
-      const color = normalizarTexto(insumo?.color);
-      const talla = normalizarTexto(insumo?.talla);
-
-      if (sku || nombre) {
-        const fallbackKey = `fallback::${nombre}::${sku}::${color}::${talla}`;
-        map.set(fallbackKey, (map.get(fallbackKey) || 0) + stockActual);
-      }
-    });
-
-    return map;
-  }, [insumosBodega]);
+  const stockBodegaIndex = useMemo(
+    () =>
+      insumosBodega.map((insumo) => ({
+        productoId: String(
+          typeof insumo?.producto_relacionado === 'object'
+            ? insumo?.producto_relacionado?._id || ''
+            : insumo?.producto_relacionado || ''
+        ).trim(),
+        varianteId: String(
+          typeof insumo?.variante_relacionada === 'object'
+            ? insumo?.variante_relacionada?._id || ''
+            : insumo?.variante_relacionada || ''
+        ).trim(),
+        nombre: normalizarTexto(insumo?.nombre),
+        sku: normalizarTexto(insumo?.sku),
+        color: normalizarTexto(insumo?.color),
+        talla: normalizarTexto(insumo?.talla),
+        stock: Number(insumo?.stock_total) || 0
+      })),
+    [insumosBodega]
+  );
 
   const obtenerStockBodega = (producto, variante = null) => {
     const productoId = String(producto?._id || '').trim();
     const varianteId = String(variante?._id || '').trim();
-    const directo = stockBodegaMap.get(`${productoId}::${varianteId}`);
-    if (directo !== undefined) return directo;
-
     const sku = normalizarTexto(variante?.sku || producto?.sku);
     const nombre = normalizarTexto(producto?.nombre);
     const color = normalizarTexto(variante?.color);
     const talla = normalizarTexto(variante?.talla);
-    const fallbackKey = `fallback::${nombre}::${sku}::${color}::${talla}`;
-    const fallback = stockBodegaMap.get(fallbackKey);
-    if (fallback !== undefined) return fallback;
 
-    if (!variante) {
-      const baseKey = `${productoId}::`;
-      return stockBodegaMap.get(baseKey) ?? 0;
-    }
+    const coincidencias = stockBodegaIndex.filter((item) => {
+      if (item.productoId && item.productoId === productoId) {
+        if (variante) {
+          if (item.varianteId && item.varianteId === varianteId) return true;
+          if (item.sku && sku && item.sku === sku) return true;
+          if (item.color === color && item.talla === talla) return true;
+          return false;
+        }
+        return !item.varianteId;
+      }
 
-    return 0;
+      if (variante) {
+        if (item.sku && sku && item.sku === sku) return true;
+        return item.nombre === nombre && item.color === color && item.talla === talla;
+      }
+
+      return item.nombre === nombre && !item.color && !item.talla;
+    });
+
+    return coincidencias.reduce((acc, item) => acc + (Number(item.stock) || 0), 0);
   };
 
   const busquedaNormalizada = useMemo(

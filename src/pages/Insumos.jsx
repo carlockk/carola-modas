@@ -677,7 +677,7 @@ export default function Insumos() {
   const handleOrdenar = async (result) => {
     if (!result.destination) return;
     if (!isAdmin) return;
-    const visibles = Array.from(insumosFiltrados);
+    let visibles = Array.from(insumosFiltrados);
     const selectedIdsSet = new Set(selectedInsumoIds);
     const dragEsSeleccionado = selectionMode && selectedIdsSet.has(result.draggableId);
 
@@ -691,11 +691,11 @@ export default function Insumos() {
         .filter((item) => !selectedIdsSet.has(item._id))
         .length;
 
-      visibles.splice(0, visibles.length, [
+      visibles = [
         ...restantes.slice(0, insertIndex),
         ...seleccionados,
         ...restantes.slice(insertIndex)
-      ].flat());
+      ];
     } else {
       const [reordenado] = visibles.splice(result.source.index, 1);
       visibles.splice(result.destination.index, 0, reordenado);

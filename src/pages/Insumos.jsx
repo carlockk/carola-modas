@@ -114,6 +114,24 @@ const obtenerImagenStockUrl = (item, { miniatura = true } = {}) => {
     : aplicarTransformacionCloudinary(url, 'f_auto,q_auto:good,w_900,c_limit');
 };
 
+const buildBodegaLookupKey = ({ nombre = '', sku = '', color = '', talla = '' }) =>
+  [
+    normalizarTexto(nombre),
+    normalizarTexto(sku),
+    normalizarTexto(color),
+    normalizarTexto(talla)
+  ].join('::');
+
+const obtenerStockProductoTotal = (producto) => {
+  if (typeof producto?.stock_total === 'number') return producto.stock_total;
+
+  if (Array.isArray(producto?.variantes) && producto.variantes.length > 0) {
+    return producto.variantes.reduce((acc, vari) => acc + (Number(vari?.stock) || 0), 0);
+  }
+
+  return Number(producto?.stock) || 0;
+};
+
 export default function Insumos() {
   const { usuario, selectedLocal } = useAuth();
   const userRole = String(usuario?.rol || '').trim().toLowerCase();
@@ -909,6 +927,144 @@ export default function Insumos() {
     [insumos]
   );
 
+  const bodegaImportIndex = useMemo(() => {
+    const relationKeys = new Set();
+    const fallbackKeys = new Set();
+
+    insumos.forEach((insumo) => {
+      const productoId = String(
+        typeof insumo?.producto_relacionado === 'object'
+          ? insumo?.producto_relacionado?._id || ''
+          : insumo?.producto_relacionado || ''
+      ).trim();
+      const varianteId = String(
+        typeof insumo?.variante_relacionada === 'object'
+          ? insumo?.variante_relacionada?._id || ''
+          : insumo?.variante_relacionada || ''
+      ).trim();
+
+      if (productoId) {
+        relationKeys.add(`${productoId}::${varianteId}`);
+      }
+
+      fallbackKeys.add(
+        buildBodegaLookupKey({
+          nombre: insumo?.nombre,
+          sku: insumo?.sku,
+          color: insumo?.color,
+          talla: insumo?.talla
+        })
+      );
+    });
+
+    return { relationKeys, fallbackKeys };
+  }, [insumos]);
+
+  const estadoImportacionProducto = useMemo(() => {
+    return new Map(
+      productos.map((producto) => {
+        const variantes = Array.isArray(producto?.variantes) ? producto.variantes : [];
+        const esperados = variantes.length > 0
+          ? variantes.map((vari) => ({
+              relationKey: `${String(producto?._id || '')}::${String(vari?._id || '')}`,
+              fallbackKey: buildBodegaLookupKey({
+                nombre: producto?.nombre,
+                sku: vari?.sku || '',
+                color: vari?.color || '',
+                talla: vari?.talla || ''
+              })
+            }))
+          : [
+              {
+                relationKey: `${String(producto?._id || '')}::`,
+                fallbackKey: buildBodegaLookupKey({
+                  nombre: producto?.nombre,
+                  sku: producto?.sku || '',
+                  color: '',
+                  talla: ''
+                })
+              }
+            ];
+
+        const importados = esperados.filter((item) =>
+          bodegaImportIndex.relationKeys.has(item.relationKey) ||
+          bodegaImportIndex.fallbackKeys.has(item.fallbackKey)
+        ).length;
+
+        return [
+          producto._id,
+          {
+            total: esperados.length,
+            importados,
+            completo: importados >= esperados.length
+          }
+        ];
+      })
+    );
+  }, [productos, bodegaImportIndex]);
+
+  const productosVentaIndex = useMemo(
+    () =>
+      productos.map((producto) => ({
+        productoId: String(producto?._id || '').trim(),
+        nombre: normalizarTexto(producto?.nombre),
+        sku: normalizarTexto(producto?.sku),
+        stockBase: obtenerStockProductoTotal(producto),
+        variantes: Array.isArray(producto?.variantes)
+          ? producto.variantes.map((vari) => ({
+              varianteId: String(vari?._id || '').trim(),
+              sku: normalizarTexto(vari?.sku),
+              color: normalizarTexto(vari?.color),
+              talla: normalizarTexto(vari?.talla),
+              stock: Number(vari?.stock) || 0
+            }))
+          : []
+      })),
+    [productos]
+  );
+
+  const obtenerStockVentaInsumo = (insumo) => {
+    const productoRelacionadoId = String(insumo?.producto_relacionado || '').trim();
+    const varianteRelacionadaId = String(insumo?.variante_relacionada || '').trim();
+    const sku = normalizarTexto(insumo?.sku);
+    const nombre = normalizarTexto(insumo?.nombre);
+    const color = normalizarTexto(insumo?.color);
+    const talla = normalizarTexto(insumo?.talla);
+
+    const resolverDesdeProducto = (productoIndex) => {
+      if (!productoIndex) return 0;
+      if (productoIndex.variantes.length > 0) {
+        const variante =
+          productoIndex.variantes.find((item) => item.varianteId && item.varianteId === varianteRelacionadaId) ||
+          productoIndex.variantes.find((item) => item.sku && sku && item.sku === sku) ||
+          productoIndex.variantes.find((item) => item.color === color && item.talla === talla);
+        return variante ? Number(variante.stock) || 0 : 0;
+      }
+      return Number(productoIndex.stockBase) || 0;
+    };
+
+    if (productoRelacionadoId) {
+      const productoIndex = productosVentaIndex.find((item) => item.productoId === productoRelacionadoId);
+      const stock = resolverDesdeProducto(productoIndex);
+      if (stock || productoIndex) return stock;
+    }
+
+    for (const productoIndex of productosVentaIndex) {
+      if (productoIndex.variantes.length > 0) {
+        const variante =
+          productoIndex.variantes.find((item) => item.sku && sku && item.sku === sku) ||
+          productoIndex.variantes.find((item) => item.color === color && item.talla === talla);
+        if (variante && productoIndex.nombre === nombre) {
+          return Number(variante.stock) || 0;
+        }
+      } else if (productoIndex.nombre === nombre && (!color && !talla)) {
+        return Number(productoIndex.stockBase) || 0;
+      }
+    }
+
+    return 0;
+  };
+
   return (
     <Box sx={{ mt: 2, px: 0.5 }}>
       <Paper
@@ -1214,6 +1370,7 @@ export default function Insumos() {
                   <TableCell>Color</TableCell>
                   <TableCell>Talla</TableCell>
                   <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>Existencia</TableCell>
+                  <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>Stock venta</TableCell>
                   <TableCell>Obs.</TableCell>
                   <TableCell sx={{ fontSize: '0.75rem' }}>Entradas / Salidas</TableCell>
                   <TableCell align="right" sx={{ fontSize: '0.75rem' }}>Acciones</TableCell>
@@ -1224,7 +1381,7 @@ export default function Insumos() {
                   <TableBody ref={provided.innerRef} {...provided.droppableProps}>
                     {insumosFiltrados.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={selectionMode ? 13 : 12} align="center">
+                        <TableCell colSpan={selectionMode ? 14 : 13} align="center">
                           No hay productos de bodega registrados.
                         </TableCell>
                       </TableRow>
@@ -1234,6 +1391,7 @@ export default function Insumos() {
                         const oculto = insumo.activo === false;
                         const seleccionado = selectedInsumoIds.includes(insumo._id);
                         const imagenUrl = obtenerImagenStockUrl(insumo);
+                        const stockVenta = obtenerStockVentaInsumo(insumo);
                         const notaConteo = String(insumo.ultima_nota || '').trim();
                         const mostrarInfoConteo = Boolean(notaConteo) && esNotaConteoFisico(notaConteo);
                         const cantidadObservaciones = Array.isArray(insumo.observaciones) ? insumo.observaciones.length : 0;
@@ -1355,6 +1513,19 @@ export default function Insumos() {
                                     size="small"
                                     color={stockBajo ? 'warning' : 'success'}
                                     label={Number(insumo.stock_total || 0)}
+                                    sx={{
+                                      minWidth: 42,
+                                      '& .MuiChip-label': {
+                                        px: 0.75
+                                      }
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    label={stockVenta}
                                     sx={{
                                       minWidth: 42,
                                       '& .MuiChip-label': {
@@ -1511,15 +1682,32 @@ export default function Insumos() {
               }}
               helperText="Puedes elegir algunos productos o usar el boton de importar todos."
             >
-              {productos.map((producto) => (
-                <MenuItem key={producto._id} value={producto._id}>
-                  {producto.nombre}
-                  {Array.isArray(producto.variantes) && producto.variantes.length > 0
-                    ? ` (${producto.variantes.length} variantes)`
-                    : ''}
-                </MenuItem>
-              ))}
+              {productos.map((producto) => {
+                const estado = estadoImportacionProducto.get(producto._id) || {
+                  total: 0,
+                  importados: 0,
+                  completo: false
+                };
+                const tieneVariantes = Array.isArray(producto.variantes) && producto.variantes.length > 0;
+                let suffix = '';
+                if (estado.completo) {
+                  suffix = ' · Ya en bodega';
+                } else if (estado.importados > 0) {
+                  suffix = ` · ${estado.importados}/${estado.total} en bodega`;
+                }
+
+                return (
+                  <MenuItem key={producto._id} value={producto._id} disabled={estado.completo}>
+                    {producto.nombre}
+                    {tieneVariantes ? ` (${producto.variantes.length} variantes)` : ''}
+                    {suffix}
+                  </MenuItem>
+                );
+              })}
             </TextField>
+            <Typography variant="caption" color="text.secondary">
+              Los productos ya importados completos aparecen deshabilitados. Si un producto tiene variantes incompletas, se podran importar solo las que faltan. El boton "Importar todos" ya omite automaticamente lo que exista en bodega.
+            </Typography>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'space-between', px: 3 }}>

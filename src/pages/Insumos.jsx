@@ -678,8 +678,28 @@ export default function Insumos() {
     if (!result.destination) return;
     if (!isAdmin) return;
     const visibles = Array.from(insumosFiltrados);
-    const [reordenado] = visibles.splice(result.source.index, 1);
-    visibles.splice(result.destination.index, 0, reordenado);
+    const selectedIdsSet = new Set(selectedInsumoIds);
+    const dragEsSeleccionado = selectionMode && selectedIdsSet.has(result.draggableId);
+
+    if (dragEsSeleccionado) {
+      const seleccionados = visibles.filter((item) => selectedIdsSet.has(item._id));
+      if (seleccionados.length === 0) return;
+
+      const restantes = visibles.filter((item) => !selectedIdsSet.has(item._id));
+      const insertIndex = visibles
+        .slice(0, result.destination.index)
+        .filter((item) => !selectedIdsSet.has(item._id))
+        .length;
+
+      visibles.splice(0, visibles.length, [
+        ...restantes.slice(0, insertIndex),
+        ...seleccionados,
+        ...restantes.slice(insertIndex)
+      ].flat());
+    } else {
+      const [reordenado] = visibles.splice(result.source.index, 1);
+      visibles.splice(result.destination.index, 0, reordenado);
+    }
 
     const visiblesIds = new Set(visibles.map((item) => item._id));
     let visibleIndex = 0;
@@ -1407,7 +1427,10 @@ export default function Insumos() {
                             draggableId={insumo._id}
                             index={index}
                             isDragDisabled={
-                              selectionMode || !isAdmin || ordenando || insumosPaginados.length < insumosFiltrados.length
+                              !isAdmin ||
+                              ordenando ||
+                              insumosPaginados.length < insumosFiltrados.length ||
+                              (selectionMode && !seleccionado)
                             }
                           >
                             {(draggableProvided) => (
@@ -1436,7 +1459,12 @@ export default function Insumos() {
                                   <IconButton
                                     size="small"
                                     {...draggableProvided.dragHandleProps}
-                                    disabled={selectionMode || !isAdmin || ordenando}
+                                    disabled={
+                                      !isAdmin ||
+                                      ordenando ||
+                                      insumosPaginados.length < insumosFiltrados.length ||
+                                      (selectionMode && !seleccionado)
+                                    }
                                   >
                                     <DragIndicatorIcon fontSize="small" />
                                   </IconButton>

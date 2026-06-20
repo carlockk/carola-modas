@@ -312,42 +312,6 @@ export default function ProductoForm({ onSuccess, onCancel }) {
           </Select>
         </FormControl>
 
-        <FormControl fullWidth>
-          <InputLabel>Grupos de agregados</InputLabel>
-          <Select
-            multiple
-            label="Grupos de agregados"
-            value={gruposSeleccionados}
-            onChange={(e) => handleChangeGrupos(e.target.value)}
-          >
-            {gruposConCantidad.map((grupo) => (
-              <MenuItem key={grupo._id} value={grupo._id} disabled={grupo.opcionesCount === 0}>
-                {grupo.categoriaPrincipal ? `${grupo.categoriaPrincipal} / ` : ''}{grupo.titulo}
-                {` (${grupo.opcionesCount})`}
-              </MenuItem>
-            ))}
-          </Select>
-          <FormHelperText>
-            Solo puedes seleccionar titulos que tengan opciones. Crea opciones en Agregados si aparece (0).
-          </FormHelperText>
-        </FormControl>
-
-        <FormControl fullWidth>
-          <InputLabel>Agregados</InputLabel>
-          <Select
-            multiple
-            label="Agregados"
-            value={agregadosSeleccionados}
-            onChange={(e) => handleChangeAgregados(e.target.value)}
-          >
-            {agregadosOptions.map((agg) => (
-              <MenuItem key={agg._id} value={agg._id}>
-                {agg.nombre}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
         <Box>
           <Button variant="outlined" component="label">
             Seleccionar imagen

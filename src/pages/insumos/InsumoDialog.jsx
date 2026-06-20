@@ -305,12 +305,6 @@ export default function InsumoDialog({
               </MenuItem>
             ))}
           </TextField>
-          <TextField
-            label="Stock minimo"
-            type="number"
-            value={form.stock_minimo}
-            onChange={(e) => setForm((prev) => ({ ...prev, stock_minimo: e.target.value }))}
-          />
           {editingId && (
             <TextField
               label="Existencia actual"

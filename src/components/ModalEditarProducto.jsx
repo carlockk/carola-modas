@@ -303,44 +303,6 @@ export default function ModalEditarProducto({ open, onClose, producto, onActuali
           </Select>
         </FormControl>
 
-        <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel id="grupo-agregados-label">Grupos de agregados</InputLabel>
-          <Select
-            labelId="grupo-agregados-label"
-            multiple
-            value={gruposSeleccionados}
-            onChange={(e) => handleChangeGrupos(e.target.value)}
-            label="Grupos de agregados"
-          >
-            {gruposConCantidad.map((grupo) => (
-              <MenuItem key={grupo._id} value={grupo._id} disabled={grupo.opcionesCount === 0}>
-                {grupo.categoriaPrincipal ? `${grupo.categoriaPrincipal} / ` : ''}{grupo.titulo}
-                {` (${grupo.opcionesCount})`}
-              </MenuItem>
-            ))}
-          </Select>
-          <FormHelperText>
-            Solo puedes seleccionar titulos que tengan opciones. Crea opciones en Agregados si aparece (0).
-          </FormHelperText>
-        </FormControl>
-
-        <FormControl fullWidth sx={{ mt: 2 }}>
-          <InputLabel id="agregados-label">Agregados</InputLabel>
-          <Select
-            labelId="agregados-label"
-            multiple
-            value={agregadosSeleccionados}
-            onChange={(e) => handleChangeAgregados(e.target.value)}
-            label="Agregados"
-          >
-            {agregadosOptions.map((agg) => (
-              <MenuItem key={agg._id} value={agg._id}>
-                {agg.nombre}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
         {usaVariantes && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>

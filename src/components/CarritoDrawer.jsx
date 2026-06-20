@@ -123,6 +123,10 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
   const [editAgregados, setEditAgregados] = useState([]);
   const [editVariante, setEditVariante] = useState(null);
   const [editDescuento, setEditDescuento] = useState(null);
+  const [manualVentaTipo, setManualVentaTipo] = useState('fijo');
+  const [manualVentaValor, setManualVentaValor] = useState('');
+  const [editManualTipo, setEditManualTipo] = useState('fijo');
+  const [editManualValor, setEditManualValor] = useState('');
   const [descuentos, setDescuentos] = useState([]);
   const [ultimaVenta, setUltimaVenta] = useState(null);
   const [configRecibo, setConfigRecibo] = useState(null);
@@ -170,6 +174,21 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     return Boolean(variante?.agotado) || stock === 0;
   };
 
+  const crearDescuentoManual = (tipo, valor, nombre = 'Descuento manual') => {
+    const tipoNormalizado = tipo === 'porcentaje' ? 'porcentaje' : 'fijo';
+    const valorNumerico = Number(valor);
+    if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) return null;
+    return {
+      descuentoId: null,
+      nombre,
+      tipo: tipoNormalizado,
+      valor: tipoNormalizado === 'porcentaje'
+        ? Math.min(Math.max(valorNumerico, 0), 100)
+        : Math.round(Math.max(valorNumerico, 0)),
+      manual: true
+    };
+  };
+
   useEffect(() => {
     const cargarConfigRecibo = async () => {
       try {
@@ -193,6 +212,16 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     };
     cargarDescuentos();
   }, [selectedLocal?._id]);
+
+  useEffect(() => {
+    if (descuentoVenta && !descuentoVenta.descuentoId) {
+      setManualVentaTipo(descuentoVenta.tipo === 'porcentaje' ? 'porcentaje' : 'fijo');
+      setManualVentaValor(String(descuentoVenta.valor || ''));
+      return;
+    }
+    setManualVentaTipo('fijo');
+    setManualVentaValor('');
+  }, [descuentoVenta]);
 
   useEffect(() => {
     if (!ultimaVenta || !configRecibo) return;
@@ -262,6 +291,13 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     setEditObservacion(item.observacion || '');
     setEditAgregados(Array.isArray(item.agregados) ? item.agregados : []);
     setEditDescuento(item.descuento || null);
+    if (item.descuento && !item.descuento.descuentoId) {
+      setEditManualTipo(item.descuento.tipo === 'porcentaje' ? 'porcentaje' : 'fijo');
+      setEditManualValor(String(item.descuento.valor || ''));
+    } else {
+      setEditManualTipo('fijo');
+      setEditManualValor('');
+    }
     const varianteActual = Array.isArray(item.variantesDisponibles)
       ? item.variantesDisponibles.find(
           (variante) => String(variante._id || '') === String(item.varianteId || '')
@@ -302,6 +338,36 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
       ...(editVariante ? { variante: editVariante } : {})
     });
     setItemEditando(null);
+  };
+
+  const aplicarDescuentoManualVenta = () => {
+    const descuentoManual = crearDescuentoManual(manualVentaTipo, manualVentaValor);
+    if (!descuentoManual) {
+      alert('Ingresa un descuento manual valido.');
+      return;
+    }
+    actualizarDescuentoVenta(descuentoManual);
+  };
+
+  const limpiarDescuentoVenta = () => {
+    setManualVentaTipo('fijo');
+    setManualVentaValor('');
+    actualizarDescuentoVenta(null);
+  };
+
+  const aplicarDescuentoManualProducto = () => {
+    const descuentoManual = crearDescuentoManual(editManualTipo, editManualValor);
+    if (!descuentoManual) {
+      alert('Ingresa un descuento manual valido.');
+      return;
+    }
+    setEditDescuento(descuentoManual);
+  };
+
+  const limpiarDescuentoProducto = () => {
+    setEditManualTipo('fijo');
+    setEditManualValor('');
+    setEditDescuento(null);
   };
 
   const handleVenta = async ({ tipoPago, tipoPedido, montoRecibido, vuelto, pagos }) => {
@@ -650,18 +716,59 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
 
             <TextField
               select fullWidth size="small" label="Descuento para toda la venta" sx={{ mt: 2 }}
-              value={descuentoVenta?.descuentoId || ''}
-              onChange={(e) => actualizarDescuentoVenta(
-                descuentos.find((item) => String(item._id) === String(e.target.value)) || null
-              )}
+              value={descuentoVenta && !descuentoVenta.descuentoId ? '__manual__' : (descuentoVenta?.descuentoId || '')}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (!value) {
+                  limpiarDescuentoVenta();
+                  return;
+                }
+                const descuentoSeleccionado =
+                  descuentos.find((item) => String(item._id) === String(value)) || null;
+                actualizarDescuentoVenta(descuentoSeleccionado);
+              }}
             >
               <MenuItem value="">Sin descuento general</MenuItem>
+              {descuentoVenta && !descuentoVenta.descuentoId && (
+                <MenuItem value="__manual__" disabled>
+                  Descuento manual activo
+                </MenuItem>
+              )}
               {descuentos.map((descuento) => (
                 <MenuItem key={descuento._id} value={descuento._id}>
                   {descuento.nombre} ({descuento.tipo === 'porcentaje' ? `${descuento.valor}%` : `$${Number(descuento.valor).toLocaleString('es-CL')}`})
                 </MenuItem>
               ))}
             </TextField>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+              <TextField
+                select
+                size="small"
+                label="Tipo manual"
+                value={manualVentaTipo}
+                onChange={(e) => setManualVentaTipo(e.target.value)}
+                sx={{ minWidth: { sm: 140 } }}
+              >
+                <MenuItem value="fijo">Monto fijo</MenuItem>
+                <MenuItem value="porcentaje">Porcentaje</MenuItem>
+              </TextField>
+              <TextField
+                size="small"
+                type="number"
+                label={manualVentaTipo === 'porcentaje' ? 'Porcentaje' : 'Monto'}
+                value={manualVentaValor}
+                onChange={(e) => setManualVentaValor(e.target.value)}
+                inputProps={{
+                  min: 0,
+                  max: manualVentaTipo === 'porcentaje' ? 100 : undefined,
+                  step: manualVentaTipo === 'porcentaje' ? 1 : 100
+                }}
+                fullWidth
+              />
+              <Button variant="outlined" onClick={aplicarDescuentoManualVenta}>
+                Aplicar manual
+              </Button>
+            </Stack>
             <Box sx={{ mt: 2, textAlign: 'right' }}>
               <Typography variant="body2">Subtotal: ${subtotal.toLocaleString('es-CL')}</Typography>
               {descuentoTotal > 0 && (
@@ -810,18 +917,59 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
 
           <TextField
             select fullWidth label="Descuento para este producto" sx={{ mb: 2 }}
-            value={editDescuento?.descuentoId || editDescuento?._id || ''}
-            onChange={(event) => setEditDescuento(
-              descuentos.find((item) => String(item._id) === String(event.target.value)) || null
-            )}
+            value={editDescuento && !editDescuento.descuentoId ? '__manual__' : (editDescuento?.descuentoId || editDescuento?._id || '')}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (!value) {
+                limpiarDescuentoProducto();
+                return;
+              }
+              setEditDescuento(
+                descuentos.find((item) => String(item._id) === String(value)) || null
+              );
+            }}
           >
             <MenuItem value="">Sin descuento</MenuItem>
+            {editDescuento && !editDescuento.descuentoId && (
+              <MenuItem value="__manual__" disabled>
+                Descuento manual activo
+              </MenuItem>
+            )}
             {descuentos.map((descuento) => (
               <MenuItem key={descuento._id} value={descuento._id}>
                 {descuento.nombre} ({descuento.tipo === 'porcentaje' ? `${descuento.valor}%` : `$${Number(descuento.valor).toLocaleString('es-CL')}`})
               </MenuItem>
             ))}
           </TextField>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+            <TextField
+              select
+              size="small"
+              label="Tipo manual"
+              value={editManualTipo}
+              onChange={(e) => setEditManualTipo(e.target.value)}
+              sx={{ minWidth: { sm: 140 } }}
+            >
+              <MenuItem value="fijo">Monto fijo</MenuItem>
+              <MenuItem value="porcentaje">Porcentaje</MenuItem>
+            </TextField>
+            <TextField
+              size="small"
+              type="number"
+              label={editManualTipo === 'porcentaje' ? 'Porcentaje' : 'Monto'}
+              value={editManualValor}
+              onChange={(e) => setEditManualValor(e.target.value)}
+              inputProps={{
+                min: 0,
+                max: editManualTipo === 'porcentaje' ? 100 : undefined,
+                step: editManualTipo === 'porcentaje' ? 1 : 100
+              }}
+              fullWidth
+            />
+            <Button variant="outlined" onClick={aplicarDescuentoManualProducto}>
+              Aplicar manual
+            </Button>
+          </Stack>
 
           {agregadosEditables.length > 0 && (
             <Box>

@@ -11,8 +11,9 @@ const normalizarDescuento = (descuento) => {
   const nombre = String(descuento.nombre || '').trim();
   const tipo = descuento.tipo === 'fijo' ? 'fijo' : descuento.tipo === 'porcentaje' ? 'porcentaje' : null;
   const valor = Number(descuento.valor);
-  if (!descuentoId || !nombre || !tipo || !Number.isFinite(valor) || valor <= 0) return null;
-  return { descuentoId, nombre, tipo, valor };
+  const esManual = Boolean(descuento.manual) || !descuentoId;
+  if ((!descuentoId && !esManual) || !nombre || !tipo || !Number.isFinite(valor) || valor <= 0) return null;
+  return { descuentoId, nombre, tipo, valor, manual: esManual };
 };
 
 const normalizarAgregados = (agregados) => {

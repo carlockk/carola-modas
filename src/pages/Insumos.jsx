@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -132,6 +132,278 @@ const obtenerStockProductoTotal = (producto) => {
   return Number(producto?.stock) || 0;
 };
 
+const InsumoTableRow = memo(function InsumoTableRow({
+  insumo,
+  index,
+  selectionMode,
+  seleccionado,
+  imagenUrl,
+  stockVenta,
+  stockBajo,
+  oculto,
+  mostrarInfoConteo,
+  notaConteo,
+  tieneObservaciones,
+  tieneObsNoLeidas,
+  puedeEditar,
+  puedeGestionarObs,
+  isAdmin,
+  isSuperadmin,
+  isMobile,
+  mostrarInsumosOcultos,
+  ordenando,
+  insumosPaginadosLength,
+  insumosFiltradosLength,
+  onToggleSelect,
+  onOpenDesc,
+  onOpenEdit,
+  onConfirmDelete,
+  onOpenMovimientoTipo,
+  onOpenObsDialog,
+  onOcultarInsumo,
+  onOpenCloneOne
+}) {
+  const arrastreDeshabilitado =
+    !isAdmin ||
+    ordenando ||
+    insumosPaginadosLength < insumosFiltradosLength ||
+    (selectionMode && !seleccionado);
+
+  return (
+    <Draggable
+      draggableId={insumo._id}
+      index={index}
+      isDragDisabled={arrastreDeshabilitado}
+    >
+      {(draggableProvided) => (
+        <TableRow
+          ref={draggableProvided.innerRef}
+          {...draggableProvided.draggableProps}
+          hover={selectionMode}
+          onClick={() => {
+            if (!selectionMode) return;
+            onToggleSelect(insumo._id);
+          }}
+          sx={
+            seleccionado
+              ? {
+                  backgroundColor: 'rgba(59, 130, 246, 0.14)',
+                  cursor: 'pointer'
+                }
+              : oculto
+                ? { backgroundColor: 'rgba(148, 163, 184, 0.18)', cursor: selectionMode ? 'pointer' : 'default' }
+                : stockBajo
+                  ? { backgroundColor: 'rgba(251, 191, 36, 0.15)', cursor: selectionMode ? 'pointer' : 'default' }
+                  : { cursor: selectionMode ? 'pointer' : 'default' }
+          }
+        >
+          <TableCell sx={{ width: 40 }}>
+            <IconButton
+              size="small"
+              {...draggableProvided.dragHandleProps}
+              disabled={arrastreDeshabilitado}
+            >
+              <DragIndicatorIcon fontSize="small" />
+            </IconButton>
+          </TableCell>
+          {selectionMode && (
+            <TableCell sx={{ width: 52 }}>
+              <Checkbox
+                checked={seleccionado}
+                onChange={() => onToggleSelect(insumo._id)}
+                onClick={(event) => event.stopPropagation()}
+              />
+            </TableCell>
+          )}
+          <TableCell>
+            {imagenUrl ? (
+              <Box
+                component="img"
+                src={imagenUrl}
+                alt={insumo.nombre}
+                loading="lazy"
+                decoding="async"
+                sx={{
+                  width: 52,
+                  height: 52,
+                  objectFit: 'cover',
+                  borderRadius: 1,
+                  bgcolor: '#f4f4f4'
+                }}
+              />
+            ) : (
+              <Typography variant="caption" color="text.secondary">Sin imagen</Typography>
+            )}
+          </TableCell>
+          <TableCell>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Typography variant="body2">{insumo.nombre}</Typography>
+              {mostrarInfoConteo && (
+                <Tooltip title={notaConteo} arrow disableHoverListener={isMobile}>
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      if (!isMobile) return;
+                      onOpenDesc(notaConteo);
+                    }}
+                  >
+                    <InfoIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Stack>
+          </TableCell>
+          <TableCell>
+            <Tooltip title={insumo.descripcion || ''} placement="top" arrow disableHoverListener={isMobile}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ maxWidth: 80, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: insumo.descripcion ? 'pointer' : 'default' }}
+                onClick={() => {
+                  if (!isMobile || !insumo.descripcion) return;
+                  onOpenDesc(insumo.descripcion);
+                }}
+              >
+                {insumo.descripcion || '-'}
+              </Typography>
+            </Tooltip>
+          </TableCell>
+          <TableCell>{insumo.sku || '-'}</TableCell>
+          <TableCell>{insumo.color || '-'}</TableCell>
+          <TableCell>{insumo.talla || '-'}</TableCell>
+          <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>
+            <Chip
+              size="small"
+              color={stockBajo ? 'warning' : 'success'}
+              label={Number(insumo.stock_total || 0)}
+              sx={{
+                minWidth: 42,
+                '& .MuiChip-label': {
+                  px: 0.75
+                }
+              }}
+            />
+          </TableCell>
+          <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>
+            <Chip
+              size="small"
+              variant="outlined"
+              label={stockVenta}
+              sx={{
+                minWidth: 42,
+                '& .MuiChip-label': {
+                  px: 0.75
+                }
+              }}
+            />
+          </TableCell>
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+            {(puedeGestionarObs || tieneObservaciones) ? (
+              <Button
+                size="small"
+                onClick={() => onOpenObsDialog(insumo)}
+                sx={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem', minWidth: 'auto', px: 0.5 }}
+              >
+                {tieneObservaciones ? (
+                  <>
+                    Ver
+                    {tieneObsNoLeidas && (
+                      <Box
+                        component="span"
+                        sx={{
+                          ml: 0.5,
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          backgroundColor: '#dc2626',
+                          color: '#fff',
+                          fontSize: '0.6rem',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          lineHeight: 1
+                        }}
+                      >
+                        1
+                      </Box>
+                    )}
+                  </>
+                ) : 'Agregar'}
+              </Button>
+            ) : (
+              <Typography variant="caption" color="text.secondary">-</Typography>
+            )}
+          </TableCell>
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+            <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'nowrap' }}>
+              <Button
+                size="small"
+                onClick={() => onOpenMovimientoTipo(insumo, 'entrada')}
+                sx={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem', minWidth: 'auto', px: 0.5 }}
+              >
+                Entrada
+              </Button>
+              <Button
+                size="small"
+                onClick={() => onOpenMovimientoTipo(insumo, 'salida')}
+                sx={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem', minWidth: 'auto', px: 0.5 }}
+              >
+                Salida
+              </Button>
+            </Stack>
+          </TableCell>
+          <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+            <Stack direction="row" spacing={0.5} justifyContent="flex-end" sx={{ flexWrap: 'nowrap' }}>
+              {!selectionMode && puedeEditar && (
+                <IconButton size="small" onClick={() => onOpenEdit(insumo)}>
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              )}
+              {!selectionMode && isAdmin && (
+                <IconButton size="small" onClick={() => onConfirmDelete(insumo)} color="error">
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              )}
+              {!selectionMode && isAdmin && !oculto && (
+                <Tooltip title="Ocultar" arrow>
+                  <IconButton
+                    size="small"
+                    onClick={() => onOcultarInsumo(insumo._id, false)}
+                  >
+                    <VisibilityOffIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {!selectionMode && isSuperadmin && !oculto && (
+                <Tooltip title="Clonar" arrow>
+                  <IconButton
+                    size="small"
+                    onClick={() => onOpenCloneOne(insumo)}
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              {!selectionMode && isAdmin && mostrarInsumosOcultos && oculto && (
+                <Tooltip title="Restaurar" arrow>
+                  <IconButton
+                    size="small"
+                    onClick={() => onOcultarInsumo(insumo._id, true)}
+                    color="success"
+                  >
+                    <RestoreIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Stack>
+          </TableCell>
+        </TableRow>
+      )}
+    </Draggable>
+  );
+});
+
 export default function Insumos() {
   const { usuario, selectedLocal } = useAuth();
   const userRole = String(usuario?.rol || '').trim().toLowerCase();
@@ -211,9 +483,13 @@ export default function Insumos() {
     () => getObsReadStorageKey(usuario?._id, selectedLocal?._id),
     [usuario?._id, selectedLocal?._id]
   );
+  const selectedInsumoIdsSet = useMemo(
+    () => new Set(selectedInsumoIds),
+    [selectedInsumoIds]
+  );
 
 
-  const fetchInsumos = async () => {
+  const fetchInsumos = useCallback(async () => {
     const localId = selectedLocal?._id || null;
     if (isSuperadmin && !localId) {
       setInsumos([]);
@@ -238,7 +514,7 @@ export default function Insumos() {
         setLoading(false);
       }
     }
-  };
+  }, [selectedLocal?._id, isSuperadmin, mostrarInsumosOcultos]);
 
   useEffect(() => {
     fetchInsumos();
@@ -336,14 +612,14 @@ export default function Insumos() {
     cargarLocales();
   }, [userRole]);
 
-  const handleOcultarInsumo = async (insumoId, activo) => {
+  const handleOcultarInsumo = useCallback(async (insumoId, activo) => {
     try {
       await actualizarEstadoInsumo(insumoId, { activo });
       fetchInsumos();
     } catch (err) {
       setError(err?.response?.data?.error || 'No se pudo actualizar el producto bodega.');
     }
-  };
+  }, [fetchInsumos]);
 
   const puedeGestionarObs = puedeEditar;
 
@@ -359,7 +635,7 @@ export default function Insumos() {
     );
   };
 
-  const cargarObservaciones = async (insumoId) => {
+  const cargarObservaciones = useCallback(async (insumoId) => {
     setObsLoading(true);
     try {
       const res = await obtenerObservacionesInsumo(insumoId);
@@ -374,9 +650,9 @@ export default function Insumos() {
     } finally {
       setObsLoading(false);
     }
-  };
+  }, []);
 
-  const marcarObsComoLeida = (insumoId, observaciones = []) => {
+  const marcarObsComoLeida = useCallback((insumoId, observaciones = []) => {
     const latestTs = getObsLastTimestamp(observaciones);
     if (!insumoId || !latestTs) return;
     setObsLeidosMap((prev) => {
@@ -390,9 +666,9 @@ export default function Insumos() {
       }
       return next;
     });
-  };
+  }, [obsReadStorageKey]);
 
-  const openObsDialog = async (insumo) => {
+  const openObsDialog = useCallback(async (insumo) => {
     if (!insumo?._id) return;
     setObsTarget(insumo);
     setObsOpen(true);
@@ -403,7 +679,7 @@ export default function Insumos() {
     setInfo('');
     const list = await cargarObservaciones(insumo._id);
     marcarObsComoLeida(insumo._id, list);
-  };
+  }, [cargarObservaciones, marcarObsComoLeida]);
 
   const handleStartEditObs = (obs) => {
     if (!puedeGestionarObs) return;
@@ -511,14 +787,14 @@ export default function Insumos() {
     });
   };
 
-  const toggleSelectInsumo = (insumoId) => {
+  const toggleSelectInsumo = useCallback((insumoId) => {
     if (!selectionMode) return;
     setSelectedInsumoIds((prev) =>
       prev.includes(insumoId)
         ? prev.filter((id) => id !== insumoId)
         : [...prev, insumoId]
     );
-  };
+  }, [selectionMode]);
 
   const handleSeleccionarTodos = () => {
     setSelectedInsumoIds(insumosFiltrados.map((item) => item._id));
@@ -558,7 +834,7 @@ export default function Insumos() {
       return;
     }
 
-    const seleccionados = insumos.filter((item) => selectedInsumoIds.includes(item._id));
+    const seleccionados = insumos.filter((item) => selectedInsumoIdsSet.has(item._id));
     setDeleteTarget({
       ids: [...selectedInsumoIds],
       cantidad: selectedInsumoIds.length,
@@ -638,12 +914,12 @@ export default function Insumos() {
     setCloneOpen(true);
   };
 
-  const openCloneOne = (insumo) => {
+  const openCloneOne = useCallback((insumo) => {
     setCloneMode('single');
     setCloneInsumo(insumo);
     setCloneTarget('');
     setCloneOpen(true);
-  };
+  }, []);
 
   const handleClone = async () => {
     if (!selectedLocal?._id) {
@@ -678,17 +954,16 @@ export default function Insumos() {
     if (!result.destination) return;
     if (!isAdmin) return;
     let visibles = Array.from(insumosFiltrados);
-    const selectedIdsSet = new Set(selectedInsumoIds);
-    const dragEsSeleccionado = selectionMode && selectedIdsSet.has(result.draggableId);
+    const dragEsSeleccionado = selectionMode && selectedInsumoIdsSet.has(result.draggableId);
 
     if (dragEsSeleccionado) {
-      const seleccionados = visibles.filter((item) => selectedIdsSet.has(item._id));
+      const seleccionados = visibles.filter((item) => selectedInsumoIdsSet.has(item._id));
       if (seleccionados.length === 0) return;
 
-      const restantes = visibles.filter((item) => !selectedIdsSet.has(item._id));
+      const restantes = visibles.filter((item) => !selectedInsumoIdsSet.has(item._id));
       const insertIndex = visibles
         .slice(0, result.destination.index)
-        .filter((item) => !selectedIdsSet.has(item._id))
+        .filter((item) => !selectedInsumoIdsSet.has(item._id))
         .length;
 
       visibles = [
@@ -791,14 +1066,14 @@ export default function Insumos() {
     }
   };
 
-  const openEdit = (insumo) => {
+  const openEdit = useCallback((insumo) => {
     setEditingInsumo(insumo);
     setDialogOpen(true);
     setError('');
     setInfo('');
-  };
+  }, []);
 
-  const confirmDelete = (insumo) => {
+  const confirmDelete = useCallback((insumo) => {
     setDeleteTarget({
       ids: [insumo._id],
       cantidad: 1,
@@ -806,7 +1081,7 @@ export default function Insumos() {
     });
     setError('');
     setInfo('');
-  };
+  }, []);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -850,7 +1125,7 @@ export default function Insumos() {
     setHistOpen(true);
   };
 
-  const openMovimientoTipo = async (insumo, tipo) => {
+  const openMovimientoTipo = useCallback(async (insumo, tipo) => {
     try {
       const movRes = await obtenerMovimientosInsumo(insumo._id);
       setMovimientos(movRes.data || []);
@@ -864,7 +1139,12 @@ export default function Insumos() {
       console.error('Error al cargar movimientos:', err);
       setError('No se pudieron cargar los movimientos.');
     }
-  };
+  }, []);
+
+  const handleOpenDesc = useCallback((texto) => {
+    setDescTexto(texto);
+    setDescOpen(true);
+  }, []);
 
   const movimientosFiltrados = useMemo(() => {
     const texto = movBusqueda.trim().toLowerCase();
@@ -937,6 +1217,39 @@ export default function Insumos() {
   const insumosPaginados = useMemo(() => {
     return insumosFiltrados.slice(0, visibleCount);
   }, [insumosFiltrados, visibleCount]);
+
+  const insumosPaginadosRows = useMemo(() => {
+    return insumosPaginados.map((insumo) => {
+      const stockBajo = Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0);
+      const oculto = insumo.activo === false;
+      const seleccionado = selectedInsumoIdsSet.has(insumo._id);
+      const imagenUrl = obtenerImagenStockUrl(insumo);
+      const stockVenta = obtenerStockVentaInsumo(insumo);
+      const notaConteo = String(insumo.ultima_nota || '').trim();
+      const mostrarInfoConteo = Boolean(notaConteo) && esNotaConteoFisico(notaConteo);
+      const cantidadObservaciones = Array.isArray(insumo.observaciones) ? insumo.observaciones.length : 0;
+      const esObsLegacy = !cantidadObservaciones && Boolean(notaConteo) && !esNotaConteoFisico(notaConteo);
+      const tieneObservaciones = cantidadObservaciones > 0 || esObsLegacy;
+      const latestObsTs =
+        getObsLastTimestamp(insumo.observaciones) ||
+        (esObsLegacy ? new Date(insumo.actualizado_en || 0).getTime() : 0);
+      const ultimoLeidoTs = Number(obsLeidosMap?.[insumo._id] || 0);
+      const tieneObsNoLeidas = tieneObservaciones && latestObsTs > ultimoLeidoTs;
+
+      return {
+        insumo,
+        stockBajo,
+        oculto,
+        seleccionado,
+        imagenUrl,
+        stockVenta,
+        notaConteo,
+        mostrarInfoConteo,
+        tieneObservaciones,
+        tieneObsNoLeidas
+      };
+    });
+  }, [insumosPaginados, selectedInsumoIdsSet, obsLeidosMap, obtenerStockVentaInsumo]);
 
   const insumosStockBajo = useMemo(
     () =>
@@ -1023,67 +1336,86 @@ export default function Insumos() {
     );
   }, [productos, bodegaImportIndex]);
 
-  const productosVentaIndex = useMemo(
-    () =>
-      productos.map((producto) => ({
-        productoId: String(producto?._id || '').trim(),
-        nombre: normalizarTexto(producto?.nombre),
-        sku: normalizarTexto(producto?.sku),
-        stockBase: obtenerStockProductoTotal(producto),
-        variantes: Array.isArray(producto?.variantes)
-          ? producto.variantes.map((vari) => ({
-              varianteId: String(vari?._id || '').trim(),
-              sku: normalizarTexto(vari?.sku),
-              color: normalizarTexto(vari?.color),
-              talla: normalizarTexto(vari?.talla),
-              stock: Number(vari?.stock) || 0
-            }))
-          : []
-      })),
-    [productos]
-  );
+  const stockVentaIndex = useMemo(() => {
+    const byRelation = new Map();
+    const byFallback = new Map();
 
-  const obtenerStockVentaInsumo = (insumo) => {
-    const productoRelacionadoId = String(insumo?.producto_relacionado || '').trim();
-    const varianteRelacionadaId = String(insumo?.variante_relacionada || '').trim();
-    const sku = normalizarTexto(insumo?.sku);
-    const nombre = normalizarTexto(insumo?.nombre);
-    const color = normalizarTexto(insumo?.color);
-    const talla = normalizarTexto(insumo?.talla);
+    productos.forEach((producto) => {
+      const productoId = String(producto?._id || '').trim();
+      const nombre = normalizarTexto(producto?.nombre);
+      const variantes = Array.isArray(producto?.variantes) ? producto.variantes : [];
 
-    const resolverDesdeProducto = (productoIndex) => {
-      if (!productoIndex) return 0;
-      if (productoIndex.variantes.length > 0) {
-        const variante =
-          productoIndex.variantes.find((item) => item.varianteId && item.varianteId === varianteRelacionadaId) ||
-          productoIndex.variantes.find((item) => item.sku && sku && item.sku === sku) ||
-          productoIndex.variantes.find((item) => item.color === color && item.talla === talla);
-        return variante ? Number(variante.stock) || 0 : 0;
+      if (variantes.length > 0) {
+        variantes.forEach((vari) => {
+          const varianteId = String(vari?._id || '').trim();
+          const stock = Number(vari?.stock) || 0;
+          const relationKey = `${productoId}::${varianteId}`;
+          const fallbackKey = buildBodegaLookupKey({
+            nombre,
+            sku: vari?.sku || '',
+            color: vari?.color || '',
+            talla: vari?.talla || ''
+          });
+
+          byRelation.set(relationKey, stock);
+          if (!byFallback.has(fallbackKey)) {
+            byFallback.set(fallbackKey, stock);
+          }
+        });
+        return;
       }
-      return Number(productoIndex.stockBase) || 0;
-    };
+
+      const stockBase = Number(obtenerStockProductoTotal(producto)) || 0;
+      const relationKey = `${productoId}::`;
+      const fallbackKey = buildBodegaLookupKey({
+        nombre,
+        sku: producto?.sku || '',
+        color: '',
+        talla: ''
+      });
+
+      byRelation.set(relationKey, stockBase);
+      if (!byFallback.has(fallbackKey)) {
+        byFallback.set(fallbackKey, stockBase);
+      }
+    });
+
+    return { byRelation, byFallback };
+  }, [productos]);
+
+  const obtenerStockVentaInsumo = useCallback((insumo) => {
+    const productoRelacionadoId = String(
+      typeof insumo?.producto_relacionado === 'object'
+        ? insumo?.producto_relacionado?._id || ''
+        : insumo?.producto_relacionado || ''
+    ).trim();
+    const varianteRelacionadaId = String(
+      typeof insumo?.variante_relacionada === 'object'
+        ? insumo?.variante_relacionada?._id || ''
+        : insumo?.variante_relacionada || ''
+    ).trim();
 
     if (productoRelacionadoId) {
-      const productoIndex = productosVentaIndex.find((item) => item.productoId === productoRelacionadoId);
-      const stock = resolverDesdeProducto(productoIndex);
-      if (stock || productoIndex) return stock;
-    }
+      const relationKey = `${productoRelacionadoId}::${varianteRelacionadaId}`;
+      if (stockVentaIndex.byRelation.has(relationKey)) {
+        return Number(stockVentaIndex.byRelation.get(relationKey)) || 0;
+      }
 
-    for (const productoIndex of productosVentaIndex) {
-      if (productoIndex.variantes.length > 0) {
-        const variante =
-          productoIndex.variantes.find((item) => item.sku && sku && item.sku === sku) ||
-          productoIndex.variantes.find((item) => item.color === color && item.talla === talla);
-        if (variante && productoIndex.nombre === nombre) {
-          return Number(variante.stock) || 0;
-        }
-      } else if (productoIndex.nombre === nombre && (!color && !talla)) {
-        return Number(productoIndex.stockBase) || 0;
+      const relationBaseKey = `${productoRelacionadoId}::`;
+      if (stockVentaIndex.byRelation.has(relationBaseKey)) {
+        return Number(stockVentaIndex.byRelation.get(relationBaseKey)) || 0;
       }
     }
 
-    return 0;
-  };
+    const fallbackKey = buildBodegaLookupKey({
+      nombre: insumo?.nombre,
+      sku: insumo?.sku || '',
+      color: insumo?.color || '',
+      talla: insumo?.talla || ''
+    });
+
+    return Number(stockVentaIndex.byFallback.get(fallbackKey)) || 0;
+  }, [stockVentaIndex]);
 
   return (
     <Box sx={{ mt: 2, px: 0.5 }}>
@@ -1406,266 +1738,52 @@ export default function Insumos() {
                         </TableCell>
                       </TableRow>
                     )}
-                    {insumosPaginados.map((insumo, index) => {
-                        const stockBajo = Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0);
-                        const oculto = insumo.activo === false;
-                        const seleccionado = selectedInsumoIds.includes(insumo._id);
-                        const imagenUrl = obtenerImagenStockUrl(insumo);
-                        const stockVenta = obtenerStockVentaInsumo(insumo);
-                        const notaConteo = String(insumo.ultima_nota || '').trim();
-                        const mostrarInfoConteo = Boolean(notaConteo) && esNotaConteoFisico(notaConteo);
-                        const cantidadObservaciones = Array.isArray(insumo.observaciones) ? insumo.observaciones.length : 0;
-                        const esObsLegacy = !cantidadObservaciones && Boolean(notaConteo) && !esNotaConteoFisico(notaConteo);
-                        const tieneObservaciones = cantidadObservaciones > 0 || esObsLegacy;
-                        const latestObsTs = getObsLastTimestamp(insumo.observaciones) ||
-                          (esObsLegacy ? new Date(insumo.actualizado_en || 0).getTime() : 0);
-                        const ultimoLeidoTs = Number(obsLeidosMap?.[insumo._id] || 0);
-                        const tieneObsNoLeidas = tieneObservaciones && latestObsTs > ultimoLeidoTs;
+                    {insumosPaginadosRows.map((row, index) => {
+                        const {
+                          insumo,
+                          stockBajo,
+                          oculto,
+                          seleccionado,
+                          imagenUrl,
+                          stockVenta,
+                          notaConteo,
+                          mostrarInfoConteo,
+                          tieneObservaciones,
+                          tieneObsNoLeidas
+                        } = row;
                         return (
-                          <Draggable
+                          <InsumoTableRow
                             key={insumo._id}
-                            draggableId={insumo._id}
+                            insumo={insumo}
                             index={index}
-                            isDragDisabled={
-                              !isAdmin ||
-                              ordenando ||
-                              insumosPaginados.length < insumosFiltrados.length ||
-                              (selectionMode && !seleccionado)
-                            }
-                          >
-                            {(draggableProvided) => (
-                              <TableRow
-                                ref={draggableProvided.innerRef}
-                                {...draggableProvided.draggableProps}
-                                hover={selectionMode}
-                                onClick={() => {
-                                  if (!selectionMode) return;
-                                  toggleSelectInsumo(insumo._id);
-                                }}
-                                sx={
-                                  seleccionado
-                                    ? {
-                                        backgroundColor: 'rgba(59, 130, 246, 0.14)',
-                                        cursor: 'pointer'
-                                      }
-                                    : oculto
-                                      ? { backgroundColor: 'rgba(148, 163, 184, 0.18)', cursor: selectionMode ? 'pointer' : 'default' }
-                                      : stockBajo
-                                        ? { backgroundColor: 'rgba(251, 191, 36, 0.15)', cursor: selectionMode ? 'pointer' : 'default' }
-                                        : { cursor: selectionMode ? 'pointer' : 'default' }
-                                }
-                              >
-                                <TableCell sx={{ width: 40 }}>
-                                  <IconButton
-                                    size="small"
-                                    {...draggableProvided.dragHandleProps}
-                                    disabled={
-                                      !isAdmin ||
-                                      ordenando ||
-                                      insumosPaginados.length < insumosFiltrados.length ||
-                                      (selectionMode && !seleccionado)
-                                    }
-                                  >
-                                    <DragIndicatorIcon fontSize="small" />
-                                  </IconButton>
-                                </TableCell>
-                                {selectionMode && (
-                                  <TableCell sx={{ width: 52 }}>
-                                    <Checkbox
-                                      checked={seleccionado}
-                                      onChange={() => toggleSelectInsumo(insumo._id)}
-                                      onClick={(event) => event.stopPropagation()}
-                                    />
-                                  </TableCell>
-                                )}
-                                <TableCell>
-                                  {imagenUrl ? (
-                                    <Box
-                                      component="img"
-                                      src={imagenUrl}
-                                      alt={insumo.nombre}
-                                      loading="lazy"
-                                      decoding="async"
-                                      sx={{
-                                        width: 52,
-                                        height: 52,
-                                        objectFit: 'cover',
-                                        borderRadius: 1,
-                                        bgcolor: '#f4f4f4'
-                                      }}
-                                    />
-                                  ) : (
-                                    <Typography variant="caption" color="text.secondary">Sin imagen</Typography>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  <Stack direction="row" spacing={1} alignItems="center">
-                                    <Typography variant="body2">{insumo.nombre}</Typography>
-                                    {mostrarInfoConteo && (
-                                      <Tooltip title={notaConteo} arrow disableHoverListener={isMobile}>
-                                        <IconButton
-                                          size="small"
-                                          onClick={() => {
-                                            if (!isMobile) return;
-                                            setDescTexto(notaConteo);
-                                            setDescOpen(true);
-                                          }}
-                                        >
-                                          <InfoIcon fontSize="small" />
-                                        </IconButton>
-                                      </Tooltip>
-                                    )}
-                                  </Stack>
-                                </TableCell>
-                                <TableCell>
-                                  <Tooltip title={insumo.descripcion || ''} placement="top" arrow disableHoverListener={isMobile}>
-                                    <Typography
-                                      variant="body2"
-                                      color="text.secondary"
-                                      sx={{ maxWidth: 80, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: insumo.descripcion ? 'pointer' : 'default' }}
-                                      onClick={() => {
-                                        if (!isMobile || !insumo.descripcion) return;
-                                        setDescTexto(insumo.descripcion);
-                                        setDescOpen(true);
-                                      }}
-                                    >
-                                      {insumo.descripcion || '-'}
-                                    </Typography>
-                                  </Tooltip>
-                                </TableCell>
-                                <TableCell>{insumo.sku || '-'}</TableCell>
-                                <TableCell>{insumo.color || '-'}</TableCell>
-                                <TableCell>{insumo.talla || '-'}</TableCell>
-                                <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>
-                                  <Chip
-                                    size="small"
-                                    color={stockBajo ? 'warning' : 'success'}
-                                    label={Number(insumo.stock_total || 0)}
-                                    sx={{
-                                      minWidth: 42,
-                                      '& .MuiChip-label': {
-                                        px: 0.75
-                                      }
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell sx={{ width: 92, minWidth: 92, maxWidth: 92, whiteSpace: 'nowrap' }}>
-                                  <Chip
-                                    size="small"
-                                    variant="outlined"
-                                    label={stockVenta}
-                                    sx={{
-                                      minWidth: 42,
-                                      '& .MuiChip-label': {
-                                        px: 0.75
-                                      }
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                  {(puedeGestionarObs || tieneObservaciones) ? (
-                                    <Button
-                                      size="small"
-                                      onClick={() => openObsDialog(insumo)}
-                                      sx={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem', minWidth: 'auto', px: 0.5 }}
-                                    >
-                                      {tieneObservaciones ? (
-                                        <>
-                                          Ver
-                                          {tieneObsNoLeidas && (
-                                            <Box
-                                              component="span"
-                                              sx={{
-                                                ml: 0.5,
-                                                width: 14,
-                                                height: 14,
-                                                borderRadius: '50%',
-                                                backgroundColor: '#dc2626',
-                                                color: '#fff',
-                                                fontSize: '0.6rem',
-                                                fontWeight: 700,
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                lineHeight: 1
-                                              }}
-                                            >
-                                              1
-                                            </Box>
-                                          )}
-                                        </>
-                                      ) : 'Agregar'}
-                                    </Button>
-                                  ) : (
-                                    <Typography variant="caption" color="text.secondary">-</Typography>
-                                  )}
-                                </TableCell>
-                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                  <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'nowrap' }}>
-                                    <Button
-                                      size="small"
-                                      onClick={() => openMovimientoTipo(insumo, 'entrada')}
-                                      sx={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem', minWidth: 'auto', px: 0.5 }}
-                                    >
-                                      Entrada
-                                    </Button>
-                                    <Button
-                                      size="small"
-                                      onClick={() => openMovimientoTipo(insumo, 'salida')}
-                                      sx={{ fontWeight: 400, color: '#6b7280', fontSize: '0.75rem', minWidth: 'auto', px: 0.5 }}
-                                    >
-                                      Salida
-                                    </Button>
-                                  </Stack>
-                                </TableCell>
-                                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                                  <Stack direction="row" spacing={0.5} justifyContent="flex-end" sx={{ flexWrap: 'nowrap' }}>
-                                    {!selectionMode && puedeEditar && (
-                                      <IconButton size="small" onClick={() => openEdit(insumo)}>
-                                        <EditIcon fontSize="small" />
-                                      </IconButton>
-                                    )}
-                                    {!selectionMode && isAdmin && (
-                                      <IconButton size="small" onClick={() => confirmDelete(insumo)} color="error">
-                                        <DeleteIcon fontSize="small" />
-                                      </IconButton>
-                                    )}
-                                    {!selectionMode && isAdmin && !oculto && (
-                                      <Tooltip title="Ocultar" arrow>
-                                        <IconButton
-                                          size="small"
-                                          onClick={() => handleOcultarInsumo(insumo._id, false)}
-                                        >
-                                          <VisibilityOffIcon fontSize="small" />
-                                        </IconButton>
-                                      </Tooltip>
-                                    )}
-                                    {!selectionMode && isSuperadmin && !oculto && (
-                                      <Tooltip title="Clonar" arrow>
-                                        <IconButton
-                                          size="small"
-                                          onClick={() => openCloneOne(insumo)}
-                                        >
-                                          <ContentCopyIcon fontSize="small" />
-                                        </IconButton>
-                                      </Tooltip>
-                                    )}
-                                    {!selectionMode && isAdmin && mostrarInsumosOcultos && oculto && (
-                                      <Tooltip title="Restaurar" arrow>
-                                        <IconButton
-                                          size="small"
-                                          onClick={() => handleOcultarInsumo(insumo._id, true)}
-                                          color="success"
-                                        >
-                                          <RestoreIcon fontSize="small" />
-                                        </IconButton>
-                                      </Tooltip>
-                                    )}
-                                  </Stack>
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </Draggable>
+                            selectionMode={selectionMode}
+                            seleccionado={seleccionado}
+                            imagenUrl={imagenUrl}
+                            stockVenta={stockVenta}
+                            stockBajo={stockBajo}
+                            oculto={oculto}
+                            mostrarInfoConteo={mostrarInfoConteo}
+                            notaConteo={notaConteo}
+                            tieneObservaciones={tieneObservaciones}
+                            tieneObsNoLeidas={tieneObsNoLeidas}
+                            puedeEditar={puedeEditar}
+                            puedeGestionarObs={puedeGestionarObs}
+                            isAdmin={isAdmin}
+                            isSuperadmin={isSuperadmin}
+                            isMobile={isMobile}
+                            mostrarInsumosOcultos={mostrarInsumosOcultos}
+                            ordenando={ordenando}
+                            insumosPaginadosLength={insumosPaginados.length}
+                            insumosFiltradosLength={insumosFiltrados.length}
+                            onToggleSelect={toggleSelectInsumo}
+                            onOpenDesc={handleOpenDesc}
+                            onOpenEdit={openEdit}
+                            onConfirmDelete={confirmDelete}
+                            onOpenMovimientoTipo={openMovimientoTipo}
+                            onOpenObsDialog={openObsDialog}
+                            onOcultarInsumo={handleOcultarInsumo}
+                            onOpenCloneOne={openCloneOne}
+                          />
                         );
                       })}
                     {provided.placeholder}

@@ -63,6 +63,7 @@ export default function ImageWithSkeleton({
               height: '100%',
               opacity: loaded ? 1 : 0,
               transition: 'opacity 0.15s ease',
+              verticalAlign: 'middle',
               ...imageSx
             }}
           />

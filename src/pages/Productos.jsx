@@ -1373,10 +1373,15 @@ export default function Productos() {
               alt={imagenAmpliada.alt}
               containerSx={{
                 width: '100%',
-                maxHeight: '70vh',
-                minHeight: 320
+                minHeight: 320,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
               imageSx={{
+                width: '100%',
+                height: 'auto',
+                maxHeight: '70vh',
                 objectFit: 'contain'
               }}
             />

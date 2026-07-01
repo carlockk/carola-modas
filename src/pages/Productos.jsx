@@ -1,4 +1,4 @@
-import { useEffect, useState, Fragment, useMemo } from 'react';
+import { useEffect, useState, Fragment, useMemo, useCallback } from 'react';
 
 import {
   Box,
@@ -148,11 +148,10 @@ export default function Productos() {
     return Number(prod.stock) || 0;
   };
 
-  const cargarDatos = async () => {
-    const [resProd, resCat, resInsumos] = await Promise.all([
+  const cargarProductosYCategorias = useCallback(async () => {
+    const [resProd, resCat] = await Promise.all([
       obtenerProductos(),
-      obtenerCategorias(),
-      obtenerInsumos()
+      obtenerCategorias()
     ]);
 
     const categoriasConEtiqueta = buildCategoryLabelMap(resCat.data || []);
@@ -163,12 +162,23 @@ export default function Productos() {
 
     setProductos(productosOrdenados);
     setCategorias(categoriasConEtiqueta);
+  }, []);
+
+  const cargarInsumosBodega = useCallback(async () => {
+    const resInsumos = await obtenerInsumos();
     setInsumosBodega(Array.isArray(resInsumos.data) ? resInsumos.data : []);
-  };
+  }, []);
+
+  const cargarDatos = useCallback(async ({ incluirBodega = true } = {}) => {
+    await cargarProductosYCategorias();
+    if (incluirBodega) {
+      cargarInsumosBodega().catch(() => setInsumosBodega([]));
+    }
+  }, [cargarProductosYCategorias, cargarInsumosBodega]);
 
   useEffect(() => {
     cargarDatos();
-  }, [selectedLocal?._id]);
+  }, [selectedLocal?._id, cargarDatos]);
 
   useEffect(() => {
     if (!esSuperadmin) return;
@@ -215,7 +225,7 @@ export default function Productos() {
     await eliminarProducto(productoSeleccionado._id);
     setOpenConfirm(false);
     setProductoSeleccionado(null);
-    cargarDatos();
+    cargarProductosYCategorias();
   };
 
   const handleEditarClick = (producto) => {
@@ -223,9 +233,14 @@ export default function Productos() {
     setOpenEditar(true);
   };
 
-  const handleCerrarEditar = () => {
+  const handleCerrarEditar = (_event, reason) => {
+    if (reason === 'backdropClick' || reason === 'escapeKeyDown') return;
     setOpenEditar(false);
-    setProductoSeleccionado(null);
+  };
+
+  const handleCerrarCrear = (_event, reason) => {
+    if (reason === 'backdropClick' || reason === 'escapeKeyDown') return;
+    setOpenCrear(false);
   };
 
   const toggleDetalle = (id) => {
@@ -233,7 +248,7 @@ export default function Productos() {
   };
 
   const handleProductoCreado = async () => {
-    await cargarDatos();
+    await cargarProductosYCategorias();
     setPaginaActual(1);
     setOpenCrear(false);
     setMensaje('Producto creado correctamente');
@@ -308,7 +323,7 @@ export default function Productos() {
       setMensaje(
         `Carga masiva finalizada: ${agregados} agregados, ${existentes} ya existentes, ${errores} con error`
       );
-      await cargarDatos();
+      await cargarProductosYCategorias();
       setOpenBase(false);
     } catch (_err) {
       alert('No se pudo completar la carga masiva');
@@ -358,7 +373,7 @@ export default function Productos() {
       setOpenBaseUse(false);
       setOpenBase(false);
       setMensaje('Producto agregado desde catalogo base');
-      cargarDatos();
+      cargarProductosYCategorias();
     } catch (err) {
       alert(err?.response?.data?.error || 'No se pudo agregar el producto');
     }
@@ -965,7 +980,8 @@ export default function Productos() {
       {/* Modal de creacion */}
       <Dialog
         open={openCrear}
-        onClose={() => setOpenCrear(false)}
+        onClose={handleCerrarCrear}
+        keepMounted
         fullWidth
         maxWidth="md"
       >
@@ -1208,7 +1224,7 @@ export default function Productos() {
         open={openEditar}
         onClose={handleCerrarEditar}
         producto={productoSeleccionado}
-        onActualizado={cargarDatos}
+        onActualizado={cargarProductosYCategorias}
       />
 
       {/* Modal stock por variante */}

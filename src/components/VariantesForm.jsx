@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react';
 import {
   Box,
   Stack,
@@ -23,15 +24,106 @@ const varianteBase = {
   agotado: false
 };
 
+const VarianteItem = memo(function VarianteItem({
+  variante,
+  index,
+  onFieldChange,
+  onRemove
+}) {
+  return (
+    <Box
+      sx={{
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
+        p: 2
+      }}
+    >
+      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+        <Typography variant="subtitle2">
+          Variante #{index + 1}
+        </Typography>
+        <IconButton
+          size="small"
+          color="error"
+          onClick={() => onRemove(index)}
+        >
+          <DeleteOutlineIcon fontSize="small" />
+        </IconButton>
+      </Stack>
+
+      <Stack spacing={1.5}>
+        <TextField
+          label="Nombre identificador"
+          value={variante.nombre}
+          onChange={(e) => onFieldChange(index, 'nombre', e.target.value)}
+          required
+        />
+
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <TextField
+            label="Color"
+            value={variante.color || ''}
+            onChange={(e) => onFieldChange(index, 'color', e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Talla"
+            value={variante.talla || ''}
+            onChange={(e) => onFieldChange(index, 'talla', e.target.value)}
+            fullWidth
+          />
+        </Stack>
+
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <TextField
+            label="SKU / código"
+            value={variante.sku || ''}
+            onChange={(e) => onFieldChange(index, 'sku', e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Stock"
+            type="number"
+            value={variante.stock}
+            onChange={(e) => onFieldChange(index, 'stock', e.target.value)}
+            helperText="Vacío o 0 = stock libre"
+            fullWidth
+          />
+          <TextField
+            label="Precio (opcional)"
+            type="number"
+            value={variante.precio}
+            onChange={(e) => onFieldChange(index, 'precio', e.target.value)}
+            fullWidth
+          />
+        </Stack>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={Boolean(variante.agotado)}
+              onChange={(e) => onFieldChange(index, 'agotado', e.target.checked)}
+            />
+          }
+          label="Marcar como agotado"
+        />
+      </Stack>
+    </Box>
+  );
+}, (prevProps, nextProps) =>
+  prevProps.index === nextProps.index &&
+  prevProps.variante === nextProps.variante
+);
+
 export default function VariantesForm({ variantes = [], onChange }) {
-  const handleChange = (index, field, value) => {
+  const handleChange = useCallback((index, field, value) => {
     const copia = variantes.map((item, idx) =>
       idx === index ? { ...item, [field]: value } : item
     );
     onChange?.(copia);
-  };
+  }, [variantes, onChange]);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     onChange?.([
       ...variantes,
       {
@@ -39,12 +131,12 @@ export default function VariantesForm({ variantes = [], onChange }) {
         tempId: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
       }
     ]);
-  };
+  }, [variantes, onChange]);
 
-  const handleRemove = (index) => {
+  const handleRemove = useCallback((index) => {
     const copia = variantes.filter((_, idx) => idx !== index);
     onChange?.(copia);
-  };
+  }, [variantes, onChange]);
 
   return (
     <Stack spacing={2}>
@@ -66,85 +158,13 @@ export default function VariantesForm({ variantes = [], onChange }) {
       )}
 
       {variantes.map((variante, index) => (
-        <Box
+        <VarianteItem
           key={variante._id || variante.tempId || index}
-          sx={{
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 2,
-            p: 2
-          }}
-        >
-          <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-            <Typography variant="subtitle2">
-              Variante #{index + 1}
-            </Typography>
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => handleRemove(index)}
-            >
-              <DeleteOutlineIcon fontSize="small" />
-            </IconButton>
-          </Stack>
-
-          <Stack spacing={1.5}>
-            <TextField
-              label="Nombre identificador"
-              value={variante.nombre}
-              onChange={(e) => handleChange(index, 'nombre', e.target.value)}
-              required
-            />
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField
-                label="Color"
-                value={variante.color || ''}
-                onChange={(e) => handleChange(index, 'color', e.target.value)}
-                fullWidth
-              />
-              <TextField
-                label="Talla"
-                value={variante.talla || ''}
-                onChange={(e) => handleChange(index, 'talla', e.target.value)}
-                fullWidth
-              />
-            </Stack>
-
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <TextField
-                label="SKU / código"
-                value={variante.sku || ''}
-                onChange={(e) => handleChange(index, 'sku', e.target.value)}
-                fullWidth
-              />
-              <TextField
-                label="Stock"
-                type="number"
-                value={variante.stock}
-                onChange={(e) => handleChange(index, 'stock', e.target.value)}
-                helperText="Vacío o 0 = stock libre"
-                fullWidth
-              />
-              <TextField
-                label="Precio (opcional)"
-                type="number"
-                value={variante.precio}
-                onChange={(e) => handleChange(index, 'precio', e.target.value)}
-                fullWidth
-              />
-            </Stack>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={Boolean(variante.agotado)}
-                  onChange={(e) => handleChange(index, 'agotado', e.target.checked)}
-                />
-              }
-              label="Marcar como agotado"
-            />
-          </Stack>
-        </Box>
+          variante={variante}
+          index={index}
+          onFieldChange={handleChange}
+          onRemove={handleRemove}
+        />
       ))}
 
       <Divider />

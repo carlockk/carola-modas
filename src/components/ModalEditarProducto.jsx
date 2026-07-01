@@ -11,14 +11,14 @@ import {
   MenuItem,
   Select,
   FormControl,
-  FormHelperText,
   InputLabel,
   Switch,
   FormControlLabel
 } from '@mui/material';
-import { useState, useEffect, useMemo } from 'react';
-import { editarProducto, obtenerCategorias, obtenerOpcionesAgregados } from '../services/api';
+import { useState, useEffect } from 'react';
+import { editarProducto, obtenerCategorias } from '../services/api';
 import VariantesForm from './VariantesForm';
+import { useAuth } from '../context/AuthContext';
 
 const esObjectId = (value) => typeof value === 'string' && /^[a-fA-F0-9]{24}$/.test(value);
 
@@ -31,7 +31,37 @@ const extraerCategoriaId = (categoria) => {
   return '';
 };
 
+const readDraft = (key) => {
+  if (!key || typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error('No se pudo leer el borrador de edicion:', error);
+    return null;
+  }
+};
+
+const writeDraft = (key, value) => {
+  if (!key || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error('No se pudo guardar el borrador de edicion:', error);
+  }
+};
+
+const removeDraft = (key) => {
+  if (!key || typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch (error) {
+    console.error('No se pudo limpiar el borrador de edicion:', error);
+  }
+};
+
 export default function ModalEditarProducto({ open, onClose, producto, onActualizado }) {
+  const { selectedLocal } = useAuth();
   const [form, setForm] = useState({
     nombre: '',
     precio: '',
@@ -47,108 +77,54 @@ export default function ModalEditarProducto({ open, onClose, producto, onActuali
   const [error, setError] = useState('');
   const [usaVariantes, setUsaVariantes] = useState(false);
   const [variantes, setVariantes] = useState([]);
-  const [gruposAgregados, setGruposAgregados] = useState([]);
-  const [agregadosOptions, setAgregadosOptions] = useState([]);
-  const [agregadosSeleccionados, setAgregadosSeleccionados] = useState([]);
-  const [gruposSeleccionados, setGruposSeleccionados] = useState([]);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const draftKey = producto?._id
+    ? `producto-draft-editar-${selectedLocal?._id || 'sin-local'}-${producto._id}`
+    : '';
 
   useEffect(() => {
     if (producto) {
+      const draft = readDraft(draftKey);
+      const variantesProducto = (producto.variantes || []).map((v) => ({
+        _id: v._id,
+        baseVarianteId: v.baseVarianteId || '',
+        nombre: v.nombre || '',
+        color: v.color || '',
+        talla: v.talla || '',
+        sku: v.sku || '',
+        precio: v.precio === 0 || v.precio ? String(v.precio) : '',
+        stock: v.stock === 0 || v.stock ? String(v.stock) : '',
+        agotado: Boolean(v.agotado)
+      }));
+
       setForm({
-        nombre: producto.nombre || '',
-        precio: producto.precio || '',
-        descripcion: producto.descripcion || '',
-        imagen_url: producto.imagen_url || '',
-        categoria: extraerCategoriaId(producto.categoria),
-        stock: producto.stock ?? ''
+        nombre: draft?.form?.nombre ?? producto.nombre ?? '',
+        precio: draft?.form?.precio ?? producto.precio ?? '',
+        descripcion: draft?.form?.descripcion ?? producto.descripcion ?? '',
+        imagen_url: draft?.form?.imagen_url ?? producto.imagen_url ?? '',
+        categoria: draft?.form?.categoria ?? extraerCategoriaId(producto.categoria),
+        stock: draft?.form?.stock ?? producto.stock ?? ''
       });
-      setUsaVariantes(Array.isArray(producto.variantes) && producto.variantes.length > 0);
-      setVariantes(
-        (producto.variantes || []).map((v) => ({
-          _id: v._id,
-          baseVarianteId: v.baseVarianteId || '',
-          nombre: v.nombre || '',
-          color: v.color || '',
-          talla: v.talla || '',
-          sku: v.sku || '',
-          precio: v.precio === 0 || v.precio ? String(v.precio) : '',
-          stock: v.stock === 0 || v.stock ? String(v.stock) : '',
-          agotado: Boolean(v.agotado)
-        }))
-      );
-      const preseleccion = (producto.agregados || [])
-        .map((agg) => (typeof agg === 'object' ? agg._id : agg))
-        .filter(Boolean)
-        .map((id) => String(id));
-      setAgregadosSeleccionados(preseleccion);
+      setUsaVariantes(draft?.usaVariantes ?? (Array.isArray(producto.variantes) && producto.variantes.length > 0));
+      setVariantes(Array.isArray(draft?.variantes) ? draft.variantes : variantesProducto);
       setImagenNueva(null);
       setError('');
+      setDraftLoaded(true);
     }
-  }, [producto]);
+  }, [draftKey, producto]);
 
   useEffect(() => {
     obtenerCategorias().then((res) => setCategorias(res.data));
-    obtenerOpcionesAgregados()
-      .then((res) => {
-        setGruposAgregados(res.data?.grupos || []);
-        setAgregadosOptions(res.data?.agregados || []);
-      })
-      .catch(() => {
-        setGruposAgregados([]);
-        setAgregadosOptions([]);
-      });
   }, []);
 
-  const agregadosByGrupo = useMemo(() => {
-    const map = new Map();
-    const getGroupIds = (agg) => {
-      const fromArray = Array.isArray(agg?.grupos) ? agg.grupos : [];
-      const fromLegacy = agg?.grupo ? [agg.grupo] : [];
-      return Array.from(new Set([...fromArray, ...fromLegacy].map((id) => String(id || '')).filter(Boolean)));
-    };
-    agregadosOptions.forEach((agg) => {
-      const groupIds = getGroupIds(agg);
-      groupIds.forEach((key) => {
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(String(agg._id));
-      });
-    });
-    return map;
-  }, [agregadosOptions]);
-
-  const gruposConCantidad = useMemo(
-    () =>
-      (gruposAgregados || []).map((grupo) => ({
-        ...grupo,
-        opcionesCount: (agregadosByGrupo.get(String(grupo._id)) || []).length
-      })),
-    [gruposAgregados, agregadosByGrupo]
-  );
-
   useEffect(() => {
-    const groups = gruposAgregados
-      .filter((grupo) => {
-        const ids = agregadosByGrupo.get(String(grupo._id)) || [];
-        return ids.length > 0 && ids.every((id) => agregadosSeleccionados.includes(id));
-      })
-      .map((g) => String(g._id));
-    setGruposSeleccionados(groups);
-  }, [agregadosSeleccionados, gruposAgregados, agregadosByGrupo]);
-
-  const handleChangeAgregados = (value) => {
-    const ids = Array.from(new Set((value || []).map((id) => String(id))));
-    setAgregadosSeleccionados(ids);
-  };
-
-  const handleChangeGrupos = (value) => {
-    const groupIds = Array.from(new Set((value || []).map((id) => String(id))));
-    setGruposSeleccionados(groupIds);
-    const nextAgregados = new Set();
-    groupIds.forEach((gid) => {
-      (agregadosByGrupo.get(gid) || []).forEach((id) => nextAgregados.add(id));
+    if (!open || !producto?._id || !draftLoaded) return;
+    writeDraft(draftKey, {
+      form,
+      usaVariantes,
+      variantes
     });
-    setAgregadosSeleccionados(Array.from(nextAgregados));
-  };
+  }, [draftKey, draftLoaded, form, open, producto?._id, usaVariantes, variantes]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -203,11 +179,11 @@ export default function ModalEditarProducto({ open, onClose, producto, onActuali
     } else {
       data.append('stock', form.stock !== '' ? parseInt(form.stock, 10) : '');
     }
-    data.append('agregados', JSON.stringify(agregadosSeleccionados));
 
     try {
       setCargando(true);
       await editarProducto(producto._id, data);
+      removeDraft(draftKey);
       alert('Cambios guardados correctamente');
       onClose();
       onActualizado?.();
@@ -220,7 +196,7 @@ export default function ModalEditarProducto({ open, onClose, producto, onActuali
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} keepMounted fullWidth maxWidth="sm">
       <DialogTitle>Editar Producto</DialogTitle>
       <DialogContent>
         {error && (

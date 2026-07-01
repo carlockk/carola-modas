@@ -5,7 +5,6 @@ import {
   Button,
   FormControl,
   FormControlLabel,
-  FormHelperText,
   InputLabel,
   MenuItem,
   Select,
@@ -15,8 +14,37 @@ import {
   Typography
 } from '@mui/material';
 import VariantesForm from './VariantesForm';
-import { crearProducto, obtenerCategorias, obtenerOpcionesAgregados } from '../services/api';
+import { crearProducto, obtenerCategorias } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+
+const readDraft = (key) => {
+  if (!key || typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    console.error('No se pudo leer el borrador de producto:', error);
+    return null;
+  }
+};
+
+const writeDraft = (key, value) => {
+  if (!key || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error('No se pudo guardar el borrador de producto:', error);
+  }
+};
+
+const removeDraft = (key) => {
+  if (!key || typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch (error) {
+    console.error('No se pudo limpiar el borrador de producto:', error);
+  }
+};
 
 export default function ProductoForm({ onSuccess, onCancel }) {
   const { usuario, selectedLocal } = useAuth();
@@ -36,23 +64,63 @@ export default function ProductoForm({ onSuccess, onCancel }) {
   const [error, setError] = useState('');
   const [exito, setExito] = useState('');
   const [cargando, setCargando] = useState(false);
-  const [gruposAgregados, setGruposAgregados] = useState([]);
-  const [agregadosOptions, setAgregadosOptions] = useState([]);
-  const [agregadosSeleccionados, setAgregadosSeleccionados] = useState([]);
-  const [gruposSeleccionados, setGruposSeleccionados] = useState([]);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const draftKey = useMemo(
+    () => `producto-draft-crear-${selectedLocal?._id || 'sin-local'}`,
+    [selectedLocal?._id]
+  );
 
   useEffect(() => {
     obtenerCategorias().then((res) => setCategorias(res.data));
-    obtenerOpcionesAgregados()
-      .then((res) => {
-        setGruposAgregados(res.data?.grupos || []);
-        setAgregadosOptions(res.data?.agregados || []);
-      })
-      .catch(() => {
-        setGruposAgregados([]);
-        setAgregadosOptions([]);
-      });
   }, []);
+
+  useEffect(() => {
+    const draft = readDraft(draftKey);
+
+    if (draft) {
+      setForm({
+        nombre: draft.form?.nombre || '',
+        precio: draft.form?.precio || '',
+        descripcion: draft.form?.descripcion || '',
+        categoria: draft.form?.categoria || '',
+        stock: draft.form?.stock ?? '',
+        imagen_url: draft.form?.imagen_url || ''
+      });
+      setControlarStock(draft.controlarStock ?? true);
+      setUsaVariantes(Boolean(draft.usaVariantes));
+      setVariantes(Array.isArray(draft.variantes) ? draft.variantes : []);
+      setError('');
+      setExito('');
+    } else {
+      setForm({
+        nombre: '',
+        precio: '',
+        descripcion: '',
+        categoria: '',
+        stock: '',
+        imagen_url: ''
+      });
+      setImagen(null);
+      setVariantes([]);
+      setUsaVariantes(false);
+      setControlarStock(true);
+      setError('');
+      setExito('');
+    }
+
+    setImagen(null);
+    setDraftLoaded(true);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftLoaded) return;
+    writeDraft(draftKey, {
+      form,
+      controlarStock,
+      usaVariantes,
+      variantes
+    });
+  }, [draftKey, draftLoaded, form, controlarStock, usaVariantes, variantes]);
 
   const resetForm = () => {
     setForm({
@@ -67,62 +135,9 @@ export default function ProductoForm({ onSuccess, onCancel }) {
     setVariantes([]);
     setUsaVariantes(false);
     setControlarStock(true);
-    setAgregadosSeleccionados([]);
-    setGruposSeleccionados([]);
     setError('');
     setExito('');
-  };
-
-  const agregadosByGrupo = useMemo(() => {
-    const map = new Map();
-    const getGroupIds = (agg) => {
-      const fromArray = Array.isArray(agg?.grupos) ? agg.grupos : [];
-      const fromLegacy = agg?.grupo ? [agg.grupo] : [];
-      return Array.from(new Set([...fromArray, ...fromLegacy].map((id) => String(id || '')).filter(Boolean)));
-    };
-    agregadosOptions.forEach((agg) => {
-      const groupIds = getGroupIds(agg);
-      groupIds.forEach((key) => {
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(String(agg._id));
-      });
-    });
-    return map;
-  }, [agregadosOptions]);
-
-  const gruposConCantidad = useMemo(
-    () =>
-      (gruposAgregados || []).map((grupo) => ({
-        ...grupo,
-        opcionesCount: (agregadosByGrupo.get(String(grupo._id)) || []).length
-      })),
-    [gruposAgregados, agregadosByGrupo]
-  );
-
-  const syncGruposDesdeAgregados = (agregadosIds) => {
-    const groups = gruposAgregados
-      .filter((grupo) => {
-        const ids = agregadosByGrupo.get(String(grupo._id)) || [];
-        return ids.length > 0 && ids.every((id) => agregadosIds.includes(id));
-      })
-      .map((g) => String(g._id));
-    setGruposSeleccionados(groups);
-  };
-
-  const handleChangeAgregados = (value) => {
-    const ids = Array.from(new Set((value || []).map((id) => String(id))));
-    setAgregadosSeleccionados(ids);
-    syncGruposDesdeAgregados(ids);
-  };
-
-  const handleChangeGrupos = (value) => {
-    const groupIds = Array.from(new Set((value || []).map((id) => String(id))));
-    setGruposSeleccionados(groupIds);
-    const nextAgregados = new Set();
-    groupIds.forEach((gid) => {
-      (agregadosByGrupo.get(gid) || []).forEach((id) => nextAgregados.add(id));
-    });
-    setAgregadosSeleccionados(Array.from(nextAgregados));
+    removeDraft(draftKey);
   };
 
   const handleChange = (event) => {
@@ -191,7 +206,6 @@ export default function ProductoForm({ onSuccess, onCancel }) {
     } else if (controlarStock && form.stock !== '') {
       data.append('stock', parseInt(form.stock, 10));
     }
-    data.append('agregados', JSON.stringify(agregadosSeleccionados));
 
     try {
       const res = await crearProducto(data);

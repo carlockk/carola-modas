@@ -6,14 +6,14 @@ import {
   Stack,
   Card,
   CardContent,
-  CardMedia,
   useMediaQuery,
   IconButton,
   Drawer,
   Snackbar,
   Tooltip,
   Fab,
-  Badge
+  Badge,
+  Skeleton
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -36,6 +36,7 @@ import StorefrontIcon from '@mui/icons-material/Storefront';
 import SettingsIcon from '@mui/icons-material/Tune';
 
 import BuscadorProducto from '../components/BuscadorProducto';
+import ImageWithSkeleton from '../components/ImageWithSkeleton';
 import ModalCrearProducto from '../components/ModalCrearProducto';
 import SelectorVariantes from '../components/SelectorVariantes';
 import SelectorAgregadosDialog from '../components/SelectorAgregadosDialog';
@@ -181,6 +182,7 @@ export default function POS() {
   const [productoConAgregados, setProductoConAgregados] = useState(null);
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [notificacionesGuardado, setNotificacionesGuardado] = useState([]);
+  const [loadingCatalogo, setLoadingCatalogo] = useState(true);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -280,29 +282,34 @@ export default function POS() {
   };
 
   const cargarDatos = async () => {
-    const [resProd, resCat] = await Promise.all([
-      obtenerProductos(),
-      obtenerCategorias()
-    ]);
+    setLoadingCatalogo(true);
+    try {
+      const [resProd, resCat] = await Promise.all([
+        obtenerProductos(),
+        obtenerCategorias()
+      ]);
 
-    const categoriasConEtiqueta = buildCategoryLabelMap(resCat.data || []);
-    const ordenGuardado = JSON.parse(
-      localStorage.getItem(`ordenCategorias_${userKey}`)
-    );
-
-    let categoriasOrdenadas = categoriasConEtiqueta;
-    if (ordenGuardado) {
-      const ordenadas = ordenGuardado
-        .map((id) => categoriasConEtiqueta.find((c) => c._id === id))
-        .filter(Boolean);
-      const faltantes = categoriasConEtiqueta.filter(
-        (c) => !ordenGuardado.includes(c._id)
+      const categoriasConEtiqueta = buildCategoryLabelMap(resCat.data || []);
+      const ordenGuardado = JSON.parse(
+        localStorage.getItem(`ordenCategorias_${userKey}`)
       );
-      categoriasOrdenadas = [...ordenadas, ...faltantes];
-    }
 
-    setProductos(resProd.data);
-    setCategorias(categoriasOrdenadas);
+      let categoriasOrdenadas = categoriasConEtiqueta;
+      if (ordenGuardado) {
+        const ordenadas = ordenGuardado
+          .map((id) => categoriasConEtiqueta.find((c) => c._id === id))
+          .filter(Boolean);
+        const faltantes = categoriasConEtiqueta.filter(
+          (c) => !ordenGuardado.includes(c._id)
+        );
+        categoriasOrdenadas = [...ordenadas, ...faltantes];
+      }
+
+      setProductos(resProd.data);
+      setCategorias(categoriasOrdenadas);
+    } finally {
+      setLoadingCatalogo(false);
+    }
   };
 
   useEffect(() => {
@@ -566,6 +573,7 @@ export default function POS() {
 
     return grupos;
   }, [categorias, productosFiltrados]);
+  const mostrarSkeletonCatalogo = loadingCatalogo && productos.length === 0;
 
   if (!cajaVerificada) {
     return (
@@ -697,13 +705,20 @@ export default function POS() {
           </Box>
         </Stack>
 
-        <BuscadorProducto
-          busqueda={busqueda}
-          setBusqueda={setBusqueda}
-          filtroCategoria={filtroCategoria}
-          setFiltroCategoria={setFiltroCategoria}
-          categorias={categorias}
-        />
+        {mostrarSkeletonCatalogo ? (
+          <Stack sx={{ flex: 1, minWidth: 220 }} spacing={1}>
+            <Skeleton variant="rounded" height={44} />
+            <Skeleton variant="rounded" height={40} width="55%" />
+          </Stack>
+        ) : (
+          <BuscadorProducto
+            busqueda={busqueda}
+            setBusqueda={setBusqueda}
+            filtroCategoria={filtroCategoria}
+            setFiltroCategoria={setFiltroCategoria}
+            categorias={categorias}
+          />
+        )}
 
         <Stack direction="row" spacing={1}>
           <Button
@@ -732,7 +747,29 @@ export default function POS() {
           alignItems: 'stretch'
         }}
       >
-        {productosAgrupados.map((grupo) => (
+        {mostrarSkeletonCatalogo
+          ? Array.from({ length: 12 }).map((_, index) => (
+              <Box
+                key={`pos-skeleton-${index}`}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderRadius: 1.25,
+                  border: `1px solid ${cardBorderColor}`,
+                  backgroundColor: cardBackground,
+                  boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
+                  p: 1.25,
+                  minHeight: 220
+                }}
+              >
+                <Skeleton variant="rounded" height={118} />
+                <Skeleton variant="text" sx={{ mt: 1.5 }} width="70%" />
+                <Skeleton variant="text" width="55%" />
+                <Skeleton variant="text" width="40%" />
+                <Skeleton variant="rounded" height={26} width="48%" sx={{ mt: 'auto' }} />
+              </Box>
+            ))
+          : productosAgrupados.map((grupo) => (
           <Fragment key={grupo.key}>
             <Box sx={{ gridColumn: '1 / -1', mt: 0.5 }}>
               <Typography
@@ -818,40 +855,36 @@ export default function POS() {
                   mb: 1.1
                 }}
               >
-                {imagenSrc ? (
-                  <Box
-                    component="img"
-                    src={imagenSrc}
-                    alt={prod.nombre}
-                    loading="lazy"
-                    decoding="async"
-                    sx={{
-                      position: 'absolute',
-                      inset: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      filter: agotado ? 'grayscale(1)' : 'none'
-                    }}
-                  />
-                ) : (
-                  <Stack
-                    position="absolute"
-                    inset={0}
-                    alignItems="center"
-                    justifyContent="center"
-                    spacing={0.5}
-                    sx={{
-                      color: descColor,
-                      fontSize: '0.75rem'
-                    }}
-                  >
-                    <StorefrontIcon fontSize="small" />
-                    <Typography variant="caption">
-                      Sin imagen
-                    </Typography>
-                  </Stack>
-                )}
+                <ImageWithSkeleton
+                  src={imagenSrc}
+                  alt={prod.nombre}
+                  containerSx={{
+                    position: 'absolute',
+                    inset: 0
+                  }}
+                  imageSx={{
+                    objectFit: 'cover',
+                    filter: agotado ? 'grayscale(1)' : 'none'
+                  }}
+                  fallback={
+                    <Stack
+                      position="absolute"
+                      inset={0}
+                      alignItems="center"
+                      justifyContent="center"
+                      spacing={0.5}
+                      sx={{
+                        color: descColor,
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      <StorefrontIcon fontSize="small" />
+                      <Typography variant="caption">
+                        Sin imagen
+                      </Typography>
+                    </Stack>
+                  }
+                />
 
                 {agotado && (
                   <Box

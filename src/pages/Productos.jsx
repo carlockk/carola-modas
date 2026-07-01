@@ -23,6 +23,7 @@ import {
   Stack,
   Chip,
   Collapse,
+  Skeleton,
   List,
   ListItem,
   ListItemText,
@@ -49,6 +50,7 @@ import {
 
 import ModalEditarProducto from '../components/ModalEditarProducto';
 import BuscadorProducto from '../components/BuscadorProducto';
+import ImageWithSkeleton from '../components/ImageWithSkeleton';
 import ProductoForm from '../components/ProductoForm';
 import VariantesForm from '../components/VariantesForm';
 import { useAuth } from '../context/AuthContext';
@@ -123,6 +125,7 @@ export default function Productos() {
   const [mensaje, setMensaje] = useState('');
   const [notificacionesGuardado, setNotificacionesGuardado] = useState([]);
   const [imagenAmpliada, setImagenAmpliada] = useState(null);
+  const [loadingCatalogo, setLoadingCatalogo] = useState(true);
 
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
@@ -153,19 +156,24 @@ export default function Productos() {
   };
 
   const cargarProductosYCategorias = useCallback(async () => {
-    const [resProd, resCat] = await Promise.all([
-      obtenerProductos(),
-      obtenerCategorias()
-    ]);
+    setLoadingCatalogo(true);
+    try {
+      const [resProd, resCat] = await Promise.all([
+        obtenerProductos(),
+        obtenerCategorias()
+      ]);
 
-    const categoriasConEtiqueta = buildCategoryLabelMap(resCat.data || []);
-    const productosOrdenados = ordenarProductosPorCategoria(
-      resProd.data,
-      categoriasConEtiqueta
-    );
+      const categoriasConEtiqueta = buildCategoryLabelMap(resCat.data || []);
+      const productosOrdenados = ordenarProductosPorCategoria(
+        resProd.data,
+        categoriasConEtiqueta
+      );
 
-    setProductos(productosOrdenados);
-    setCategorias(categoriasConEtiqueta);
+      setProductos(productosOrdenados);
+      setCategorias(categoriasConEtiqueta);
+    } finally {
+      setLoadingCatalogo(false);
+    }
   }, []);
 
   const cargarInsumosBodega = useCallback(async () => {
@@ -598,6 +606,8 @@ export default function Productos() {
     setPaginaActual(nuevaPagina);
   };
 
+  const mostrarSkeletonCatalogo = loadingCatalogo && productos.length === 0;
+
   return (
     <Box sx={{ mt: 4, px: 2 }}>
       <Box
@@ -638,19 +648,30 @@ export default function Productos() {
           '& .MuiTableCell-root': { fontSize: '0.85rem' }
         }}
       >
-        <BuscadorProducto
-          busqueda={busqueda}
-          setBusqueda={setBusqueda}
-          categorias={categorias}
-          filtroCategoria={filtroCategoria}
-          setFiltroCategoria={setFiltroCategoria}
-          precioMin={precioMin}
-          setPrecioMin={setPrecioMin}
-          precioMax={precioMax}
-          setPrecioMax={setPrecioMax}
-          stockMin={stockMin}
-          setStockMin={setStockMin}
-        />
+        {mostrarSkeletonCatalogo ? (
+          <Stack spacing={1.25}>
+            <Skeleton variant="rounded" height={44} />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Skeleton variant="rounded" height={40} sx={{ flex: 1 }} />
+              <Skeleton variant="rounded" height={40} sx={{ flex: 1 }} />
+              <Skeleton variant="rounded" height={40} sx={{ flex: 1 }} />
+            </Stack>
+          </Stack>
+        ) : (
+          <BuscadorProducto
+            busqueda={busqueda}
+            setBusqueda={setBusqueda}
+            categorias={categorias}
+            filtroCategoria={filtroCategoria}
+            setFiltroCategoria={setFiltroCategoria}
+            precioMin={precioMin}
+            setPrecioMin={setPrecioMin}
+            precioMax={precioMax}
+            setPrecioMax={setPrecioMax}
+            stockMin={stockMin}
+            setStockMin={setStockMin}
+          />
+        )}
       </Paper>
 
       {/* Tabla de productos */}
@@ -664,7 +685,25 @@ export default function Productos() {
         }}
       >
         <Stack spacing={1.5} sx={{ display: { xs: 'flex', sm: 'none' }, p: 1 }}>
-          {productosEnPagina.map((prod) => {
+          {mostrarSkeletonCatalogo
+            ? Array.from({ length: 6 }).map((_, index) => (
+                <Paper key={`mobile-skeleton-${index}`} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
+                  <Stack direction="row" spacing={1.25} alignItems="flex-start">
+                    <Skeleton variant="rounded" width={76} height={76} />
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Skeleton variant="text" width="70%" height={28} />
+                      <Skeleton variant="text" width="45%" />
+                      <Skeleton variant="text" width="35%" />
+                      <Skeleton variant="text" width="30%" />
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                    <Skeleton variant="rounded" width={120} height={32} />
+                    <Skeleton variant="rounded" width={84} height={32} />
+                  </Stack>
+                </Paper>
+              ))
+            : productosEnPagina.map((prod) => {
             const hayVariantes = tieneVariantes(prod);
             const stockTotal = obtenerStockTotal(prod);
             const imagenUrl = obtenerImagenUrl(prod, { miniatura: true });
@@ -672,13 +711,14 @@ export default function Productos() {
             return (
               <Paper key={prod._id} variant="outlined" sx={{ p: 1.25, borderRadius: 2 }}>
                 <Stack direction="row" spacing={1.25} alignItems="flex-start">
-                  <Box
+                  <ImageWithSkeleton
+                    src={imagenUrl}
+                    alt={prod.nombre}
                     onClick={() => handleAbrirImagen(prod)}
-                    sx={{
+                    containerSx={{
                       width: 76,
                       height: 76,
                       flexShrink: 0,
-                      overflow: 'hidden',
                       borderRadius: 1.5,
                       backgroundColor: '#f4f4f4',
                       cursor: imagenUrl ? 'pointer' : 'default',
@@ -686,22 +726,8 @@ export default function Productos() {
                       alignItems: 'center',
                       justifyContent: 'center'
                     }}
-                  >
-                    {imagenUrl ? (
-                      <Box
-                        component="img"
-                        src={imagenUrl}
-                        alt={prod.nombre}
-                        loading="lazy"
-                        decoding="async"
-                        sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                    ) : (
-                      <Typography variant="caption" color="text.secondary" align="center">
-                        Sin imagen
-                      </Typography>
-                    )}
-                  </Box>
+                    imageSx={{ objectFit: 'cover' }}
+                  />
 
                   <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mb: 0.25 }}>
@@ -793,7 +819,19 @@ export default function Productos() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {productosEnPagina.map((prod) => {
+            {mostrarSkeletonCatalogo
+              ? Array.from({ length: 8 }).map((_, index) => (
+                  <TableRow key={`desktop-skeleton-${index}`}>
+                    <TableCell><Skeleton variant="circular" width={28} height={28} /></TableCell>
+                    <TableCell><Skeleton variant="text" width="75%" /></TableCell>
+                    <TableCell><Skeleton variant="text" width="55%" /></TableCell>
+                    <TableCell><Skeleton variant="text" width="65%" /></TableCell>
+                    <TableCell><Skeleton variant="rounded" width={60} height={60} /></TableCell>
+                    <TableCell align="right"><Skeleton variant="text" width={70} sx={{ ml: 'auto' }} /></TableCell>
+                    <TableCell align="right"><Skeleton variant="rounded" width={96} height={32} sx={{ ml: 'auto' }} /></TableCell>
+                  </TableRow>
+                ))
+              : productosEnPagina.map((prod) => {
               const hayVariantes = tieneVariantes(prod);
               const stockTotal = obtenerStockTotal(prod);
               const totalVisible = stockTotal;
@@ -868,40 +906,23 @@ export default function Productos() {
                     </TableCell>
 
                     <TableCell>
-                      {imagenUrl ? (
-                        <Box
-                          onClick={() => handleAbrirImagen(prod)}
-                          sx={{
-                            width: 60,
-                            height: 60,
-                            overflow: 'hidden',
-                            borderRadius: '6px',
-                            border: '4px solid white',
-                            boxShadow: '0 0 4px rgba(0,0,0,0.3)',
-                            backgroundColor: '#f4f4f4',
-                            cursor: 'pointer',
-                            transition: 'transform 0.15s ease',
-                            '&:hover': { transform: 'scale(1.03)' }
-                          }}
-                        >
-                          <Box
-                            component="img"
-                            src={imagenUrl}
-                            alt={prod.nombre}
-                            loading="lazy"
-                            decoding="async"
-                            sx={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover'
-                            }}
-                          />
-                        </Box>
-                      ) : (
-                        <Typography color="text.secondary">
-                          Sin imagen
-                        </Typography>
-                      )}
+                      <ImageWithSkeleton
+                        src={imagenUrl}
+                        alt={prod.nombre}
+                        onClick={() => handleAbrirImagen(prod)}
+                        containerSx={{
+                          width: 60,
+                          height: 60,
+                          borderRadius: '6px',
+                          border: '4px solid white',
+                          boxShadow: '0 0 4px rgba(0,0,0,0.3)',
+                          backgroundColor: '#f4f4f4',
+                          cursor: imagenUrl ? 'pointer' : 'default',
+                          transition: 'transform 0.15s ease',
+                          '&:hover': imagenUrl ? { transform: 'scale(1.03)' } : undefined
+                        }}
+                        imageSx={{ objectFit: 'cover' }}
+                      />
                     </TableCell>
 
                     <TableCell align="right">
@@ -1006,14 +1027,16 @@ export default function Productos() {
         </Table>
 
         {/* Paginación */}
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
-          <Pagination
-            count={totalPaginas || 1}
-            page={paginaActual}
-            onChange={handleCambioPagina}
-            color="primary"
-          />
-        </Box>
+        {!mostrarSkeletonCatalogo && (
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
+            <Pagination
+              count={totalPaginas || 1}
+              page={paginaActual}
+              onChange={handleCambioPagina}
+              color="primary"
+            />
+          </Box>
+        )}
       </Paper>
 
       {/* Modal de creacion */}
@@ -1345,14 +1368,15 @@ export default function Productos() {
         <DialogTitle>{imagenAmpliada?.alt || 'Imagen'}</DialogTitle>
         <DialogContent dividers>
           {imagenAmpliada && (
-            <Box
-              component="img"
+            <ImageWithSkeleton
               src={imagenAmpliada.src}
               alt={imagenAmpliada.alt}
-              sx={{
+              containerSx={{
                 width: '100%',
-                height: 'auto',
                 maxHeight: '70vh',
+                minHeight: 320
+              }}
+              imageSx={{
                 objectFit: 'contain'
               }}
             />

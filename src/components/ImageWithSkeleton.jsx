@@ -12,7 +12,21 @@ export default function ImageWithSkeleton({
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (!src) {
+      setLoaded(false);
+      return;
+    }
+
     setLoaded(false);
+
+    const image = new window.Image();
+    image.onload = () => setLoaded(true);
+    image.onerror = () => setLoaded(true);
+    image.src = src;
+
+    if (image.complete) {
+      setLoaded(true);
+    }
   }, [src]);
 
   return (
@@ -44,12 +58,11 @@ export default function ImageWithSkeleton({
             alt={alt}
             loading="lazy"
             decoding="async"
-            onLoad={() => setLoaded(true)}
-            onError={() => setLoaded(true)}
             sx={{
               width: '100%',
               height: '100%',
-              display: loaded ? 'block' : 'none',
+              opacity: loaded ? 1 : 0,
+              transition: 'opacity 0.15s ease',
               ...imageSx
             }}
           />

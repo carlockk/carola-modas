@@ -19,6 +19,7 @@ import { useState, useEffect } from 'react';
 import { editarProducto, obtenerCategorias } from '../services/api';
 import VariantesForm from './VariantesForm';
 import { useAuth } from '../context/AuthContext';
+import { optimizeImageFile } from '../lib/imageUpload';
 
 const esObjectId = (value) => typeof value === 'string' && /^[a-fA-F0-9]{24}$/.test(value);
 
@@ -130,13 +131,14 @@ export default function ModalEditarProducto({ open, onClose, producto, onActuali
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleImagen = (e) => {
+  const handleImagen = async (e) => {
     const archivo = e.target.files[0];
     if (archivo && !archivo.type.startsWith('image/')) {
       setError('Solo se permiten archivos de imagen');
       return;
     }
-    setImagenNueva(archivo);
+    const imagenOptimizada = archivo ? await optimizeImageFile(archivo) : null;
+    setImagenNueva(imagenOptimizada);
     setError('');
   };
 

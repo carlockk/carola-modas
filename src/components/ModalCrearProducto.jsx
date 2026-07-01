@@ -18,6 +18,7 @@ import {
 import { useEffect, useState } from 'react';
 import { crearProducto, obtenerCategorias } from '../services/api';
 import VariantesForm from './VariantesForm';
+import { optimizeImageFile } from '../lib/imageUpload';
 
 export default function ModalCrearProducto({
   open,
@@ -37,6 +38,7 @@ export default function ModalCrearProducto({
   const [usaVariantes, setUsaVariantes] = useState(false);
   const [variantes, setVariantes] = useState([]);
   const [error, setError] = useState('');
+  const [cargando, setCargando] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -63,6 +65,8 @@ export default function ModalCrearProducto({
   };
 
   const handleSubmit = async () => {
+    if (cargando) return;
+
     if (!form.nombre.trim() || !form.precio) {
       setError('Faltan campos obligatorios (nombre y precio).');
       return;
@@ -109,6 +113,7 @@ export default function ModalCrearProducto({
     }
 
     try {
+      setCargando(true);
       await crearProducto(data);
       onCreado?.();
       resetForm();
@@ -116,6 +121,8 @@ export default function ModalCrearProducto({
     } catch (err) {
       console.error(err);
       setError(err?.response?.data?.error || 'Error al crear producto');
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -207,13 +214,14 @@ export default function ModalCrearProducto({
             hidden
             accept="image/*"
             type="file"
-            onChange={(e) => {
+            onChange={async (e) => {
               const archivo = e.target.files?.[0] || null;
               if (archivo && !archivo.type.startsWith('image/')) {
                 setError('Solo se permiten archivos de imagen');
                 return;
               }
-              setImagen(archivo);
+              const imagenOptimizada = archivo ? await optimizeImageFile(archivo) : null;
+              setImagen(imagenOptimizada);
               setError('');
             }}
           />
@@ -256,8 +264,8 @@ export default function ModalCrearProducto({
         >
           Cancelar
         </Button>
-        <Button variant="contained" onClick={handleSubmit}>
-          Crear
+        <Button variant="contained" onClick={handleSubmit} disabled={cargando}>
+          {cargando ? 'Creando...' : 'Crear'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -16,6 +16,7 @@ import {
 import VariantesForm from './VariantesForm';
 import { crearProducto, obtenerCategorias } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { optimizeImageFile } from '../lib/imageUpload';
 
 const readDraft = (key) => {
   if (!key || typeof window === 'undefined') return null;
@@ -144,13 +145,14 @@ export default function ProductoForm({ onSuccess, onCancel }) {
     setForm({ ...form, [event.target.name]: event.target.value });
   };
 
-  const handleImageChange = (event) => {
+  const handleImageChange = async (event) => {
     const archivo = event.target.files?.[0] || null;
     if (archivo && !archivo.type.startsWith('image/')) {
       setError('Solo se permiten archivos de imagen.');
       return;
     }
-    setImagen(archivo);
+    const imagenOptimizada = archivo ? await optimizeImageFile(archivo) : null;
+    setImagen(imagenOptimizada);
     setError('');
   };
 

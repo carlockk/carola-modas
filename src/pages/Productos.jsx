@@ -51,6 +51,7 @@ import BuscadorProducto from '../components/BuscadorProducto';
 import ProductoForm from '../components/ProductoForm';
 import VariantesForm from '../components/VariantesForm';
 import { useAuth } from '../context/AuthContext';
+import { optimizeImageFile } from '../lib/imageUpload';
 
 const BASE_URL = FILES_BASE;
 
@@ -117,6 +118,7 @@ export default function Productos() {
   const [baseImagen, setBaseImagen] = useState(null);
   const [baseVariantes, setBaseVariantes] = useState([]);
   const [baseError, setBaseError] = useState('');
+  const [baseGuardando, setBaseGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [imagenAmpliada, setImagenAmpliada] = useState(null);
 
@@ -404,11 +406,13 @@ export default function Productos() {
   };
 
   const handleCrearBase = async () => {
+    if (baseGuardando) return;
     if (!baseForm.nombre.trim()) {
       setBaseError('El nombre es obligatorio');
       return;
     }
     try {
+      setBaseGuardando(true);
       const data = new FormData();
       data.append('nombre', baseForm.nombre.trim());
       data.append('descripcion', baseForm.descripcion.trim());
@@ -426,6 +430,8 @@ export default function Productos() {
       setMensaje('Producto base creado');
     } catch (err) {
       setBaseError(err?.response?.data?.error || 'No se pudo crear el producto base');
+    } finally {
+      setBaseGuardando(false);
     }
   };
 
@@ -1102,7 +1108,11 @@ export default function Productos() {
                 hidden
                 accept="image/*"
                 type="file"
-                onChange={(e) => setBaseImagen(e.target.files?.[0] || null)}
+                onChange={async (e) => {
+                  const archivo = e.target.files?.[0] || null;
+                  const imagenOptimizada = archivo ? await optimizeImageFile(archivo) : null;
+                  setBaseImagen(imagenOptimizada);
+                }}
               />
             </Button>
             {baseImagen && (
@@ -1125,8 +1135,8 @@ export default function Productos() {
           >
             Cancelar
           </Button>
-          <Button variant="contained" onClick={handleCrearBase}>
-            Crear base
+          <Button variant="contained" onClick={handleCrearBase} disabled={baseGuardando}>
+            {baseGuardando ? 'Creando...' : 'Crear base'}
           </Button>
         </DialogActions>
       </Dialog>

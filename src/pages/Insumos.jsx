@@ -1218,39 +1218,6 @@ export default function Insumos() {
     return insumosFiltrados.slice(0, visibleCount);
   }, [insumosFiltrados, visibleCount]);
 
-  const insumosPaginadosRows = useMemo(() => {
-    return insumosPaginados.map((insumo) => {
-      const stockBajo = Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0);
-      const oculto = insumo.activo === false;
-      const seleccionado = selectedInsumoIdsSet.has(insumo._id);
-      const imagenUrl = obtenerImagenStockUrl(insumo);
-      const stockVenta = obtenerStockVentaInsumo(insumo);
-      const notaConteo = String(insumo.ultima_nota || '').trim();
-      const mostrarInfoConteo = Boolean(notaConteo) && esNotaConteoFisico(notaConteo);
-      const cantidadObservaciones = Array.isArray(insumo.observaciones) ? insumo.observaciones.length : 0;
-      const esObsLegacy = !cantidadObservaciones && Boolean(notaConteo) && !esNotaConteoFisico(notaConteo);
-      const tieneObservaciones = cantidadObservaciones > 0 || esObsLegacy;
-      const latestObsTs =
-        getObsLastTimestamp(insumo.observaciones) ||
-        (esObsLegacy ? new Date(insumo.actualizado_en || 0).getTime() : 0);
-      const ultimoLeidoTs = Number(obsLeidosMap?.[insumo._id] || 0);
-      const tieneObsNoLeidas = tieneObservaciones && latestObsTs > ultimoLeidoTs;
-
-      return {
-        insumo,
-        stockBajo,
-        oculto,
-        seleccionado,
-        imagenUrl,
-        stockVenta,
-        notaConteo,
-        mostrarInfoConteo,
-        tieneObservaciones,
-        tieneObsNoLeidas
-      };
-    });
-  }, [insumosPaginados, selectedInsumoIdsSet, obsLeidosMap, obtenerStockVentaInsumo]);
-
   const insumosStockBajo = useMemo(
     () =>
       insumos.filter(
@@ -1416,6 +1383,39 @@ export default function Insumos() {
 
     return Number(stockVentaIndex.byFallback.get(fallbackKey)) || 0;
   }, [stockVentaIndex]);
+
+  const insumosPaginadosRows = useMemo(() => {
+    return insumosPaginados.map((insumo) => {
+      const stockBajo = Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0);
+      const oculto = insumo.activo === false;
+      const seleccionado = selectedInsumoIdsSet.has(insumo._id);
+      const imagenUrl = obtenerImagenStockUrl(insumo);
+      const stockVenta = obtenerStockVentaInsumo(insumo);
+      const notaConteo = String(insumo.ultima_nota || '').trim();
+      const mostrarInfoConteo = Boolean(notaConteo) && esNotaConteoFisico(notaConteo);
+      const cantidadObservaciones = Array.isArray(insumo.observaciones) ? insumo.observaciones.length : 0;
+      const esObsLegacy = !cantidadObservaciones && Boolean(notaConteo) && !esNotaConteoFisico(notaConteo);
+      const tieneObservaciones = cantidadObservaciones > 0 || esObsLegacy;
+      const latestObsTs =
+        getObsLastTimestamp(insumo.observaciones) ||
+        (esObsLegacy ? new Date(insumo.actualizado_en || 0).getTime() : 0);
+      const ultimoLeidoTs = Number(obsLeidosMap?.[insumo._id] || 0);
+      const tieneObsNoLeidas = tieneObservaciones && latestObsTs > ultimoLeidoTs;
+
+      return {
+        insumo,
+        stockBajo,
+        oculto,
+        seleccionado,
+        imagenUrl,
+        stockVenta,
+        notaConteo,
+        mostrarInfoConteo,
+        tieneObservaciones,
+        tieneObsNoLeidas
+      };
+    });
+  }, [insumosPaginados, selectedInsumoIdsSet, obsLeidosMap, obtenerStockVentaInsumo]);
 
   return (
     <Box sx={{ mt: 2, px: 0.5 }}>

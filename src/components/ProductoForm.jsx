@@ -47,7 +47,7 @@ const removeDraft = (key) => {
   }
 };
 
-export default function ProductoForm({ onSuccess, onCancel }) {
+export default function ProductoForm({ onSuccess, onCancel, onBackgroundSave }) {
   const { usuario, selectedLocal } = useAuth();
   const [form, setForm] = useState({
     nombre: '',
@@ -141,6 +141,24 @@ export default function ProductoForm({ onSuccess, onCancel }) {
     removeDraft(draftKey);
   };
 
+  const clearVisualForm = () => {
+    setForm({
+      nombre: '',
+      precio: '',
+      descripcion: '',
+      categoria: '',
+      stock: '',
+      imagen_url: ''
+    });
+    setImagen(null);
+    setVariantes([]);
+    setUsaVariantes(false);
+    setControlarStock(true);
+    setError('');
+    setExito('');
+    removeDraft(draftKey);
+  };
+
   const handleChange = (event) => {
     setForm({ ...form, [event.target.name]: event.target.value });
   };
@@ -207,6 +225,16 @@ export default function ProductoForm({ onSuccess, onCancel }) {
       data.append('variantes', JSON.stringify(variantes));
     } else if (controlarStock && form.stock !== '') {
       data.append('stock', parseInt(form.stock, 10));
+    }
+
+    if (onBackgroundSave) {
+      onBackgroundSave({
+        data,
+        nombre: form.nombre.trim()
+      });
+      clearVisualForm();
+      setCargando(false);
+      return;
     }
 
     try {

@@ -41,6 +41,7 @@ import {
   obtenerCategorias,
   obtenerProductosBase,
   crearProductoBase,
+  crearProducto,
   usarProductoBaseEnLocal,
   obtenerLocales,
   FILES_BASE,
@@ -120,6 +121,7 @@ export default function Productos() {
   const [baseError, setBaseError] = useState('');
   const [baseGuardando, setBaseGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const [notificacionesGuardado, setNotificacionesGuardado] = useState([]);
   const [imagenAmpliada, setImagenAmpliada] = useState(null);
 
   const [busqueda, setBusqueda] = useState('');
@@ -255,6 +257,37 @@ export default function Productos() {
     setOpenCrear(false);
     setMensaje('Producto creado correctamente');
   };
+
+  const pushNotificacionGuardado = useCallback((texto, severity = 'success') => {
+    setNotificacionesGuardado((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        texto,
+        severity
+      }
+    ]);
+  }, []);
+
+  const handleBackgroundSaveProducto = useCallback(
+    ({ data, nombre }) => {
+      setOpenCrear(false);
+
+      crearProducto(data)
+        .then(async () => {
+          pushNotificacionGuardado(`Se guardo producto: ${nombre}`);
+          await cargarProductosYCategorias();
+          setPaginaActual(1);
+        })
+        .catch((err) => {
+          pushNotificacionGuardado(
+            err?.response?.data?.error || `No se pudo guardar producto: ${nombre}`,
+            'error'
+          );
+        });
+    },
+    [cargarProductosYCategorias, pushNotificacionGuardado]
+  );
 
   const handleAbrirBases = async () => {
     try {
@@ -995,6 +1028,7 @@ export default function Productos() {
         <DialogContent dividers>
           <ProductoForm
             onSuccess={handleProductoCreado}
+            onBackgroundSave={handleBackgroundSaveProducto}
             onCancel={() => setOpenCrear(false)}
           />
         </DialogContent>
@@ -1349,6 +1383,29 @@ export default function Productos() {
           {mensaje}
         </Alert>
       </Snackbar>
+
+      {notificacionesGuardado.map((item, index) => (
+        <Snackbar
+          key={item.id}
+          open
+          autoHideDuration={3000}
+          onClose={() =>
+            setNotificacionesGuardado((prev) => prev.filter((notif) => notif.id !== item.id))
+          }
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          sx={{ mb: index * 8 }}
+        >
+          <Alert
+            onClose={() =>
+              setNotificacionesGuardado((prev) => prev.filter((notif) => notif.id !== item.id))
+            }
+            severity={item.severity}
+            sx={{ width: '100%' }}
+          >
+            {item.texto}
+          </Alert>
+        </Snackbar>
+      ))}
     </Box>
   );
 }

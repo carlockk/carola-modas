@@ -23,7 +23,8 @@ import { optimizeImageFile } from '../lib/imageUpload';
 export default function ModalCrearProducto({
   open,
   onClose,
-  onCreado
+  onCreado,
+  onBackgroundSave
 }) {
   const [form, setForm] = useState({
     nombre: '',
@@ -50,6 +51,21 @@ export default function ModalCrearProducto({
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
   const resetForm = () => {
+    setForm({
+      nombre: '',
+      precio: '',
+      descripcion: '',
+      categoria: '',
+      stock: '',
+      imagen_url: ''
+    });
+    setImagen(null);
+    setVariantes([]);
+    setUsaVariantes(false);
+    setError('');
+  };
+
+  const clearVisualForm = () => {
     setForm({
       nombre: '',
       precio: '',
@@ -110,6 +126,16 @@ export default function ModalCrearProducto({
       data.append('variantes', JSON.stringify(variantes));
     } else if (form.stock !== '') {
       data.append('stock', parseInt(form.stock, 10));
+    }
+
+    if (onBackgroundSave) {
+      onBackgroundSave({
+        data,
+        nombre: form.nombre.trim()
+      });
+      clearVisualForm();
+      setCargando(false);
+      return;
     }
 
     try {

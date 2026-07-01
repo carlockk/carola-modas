@@ -25,6 +25,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import CarritoDrawer from '../components/CarritoDrawer';
 import { obtenerProductos, obtenerCategorias, FILES_BASE } from '../services/api';
+import { crearProducto } from '../services/api';
 import { useCarrito } from '../context/CarritoContext';
 import { useCaja } from '../context/CajaContext';
 import { useAuth } from '../context/AuthContext';
@@ -179,6 +180,7 @@ export default function POS() {
   const [productoConVariantes, setProductoConVariantes] = useState(null);
   const [productoConAgregados, setProductoConAgregados] = useState(null);
   const [headerScrolled, setHeaderScrolled] = useState(false);
+  const [notificacionesGuardado, setNotificacionesGuardado] = useState([]);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -443,6 +445,33 @@ export default function POS() {
   const resetOrden = () => {
     localStorage.removeItem(`ordenCategorias_${userKey}`);
     cargarDatos();
+  };
+
+  const pushNotificacionGuardado = (texto, severity = 'success') => {
+    setNotificacionesGuardado((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        texto,
+        severity
+      }
+    ]);
+  };
+
+  const handleBackgroundSaveProducto = ({ data, nombre }) => {
+    setOpenCrear(false);
+
+    crearProducto(data)
+      .then(async () => {
+        pushNotificacionGuardado(`Se guardo producto: ${nombre}`);
+        await cargarDatos();
+      })
+      .catch((err) => {
+        pushNotificacionGuardado(
+          err?.response?.data?.error || `No se pudo guardar producto: ${nombre}`,
+          'error'
+        );
+      });
   };
 
   const busquedaLower = busqueda.trim().toLowerCase();
@@ -1203,6 +1232,7 @@ export default function POS() {
         open={openCrear}
         onClose={() => setOpenCrear(false)}
         onCreado={cargarDatos}
+        onBackgroundSave={handleBackgroundSaveProducto}
       />
       <CarritoDrawer
         open={openCarrito}
@@ -1259,6 +1289,29 @@ export default function POS() {
         onClose={() => setSnackbarOpen(false)}
         message="Orden guardado"
       />
+
+      {notificacionesGuardado.map((item, index) => (
+        <Snackbar
+          key={item.id}
+          open
+          autoHideDuration={3000}
+          onClose={() =>
+            setNotificacionesGuardado((prev) => prev.filter((notif) => notif.id !== item.id))
+          }
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          sx={{ mb: index * 8 }}
+        >
+          <Alert
+            onClose={() =>
+              setNotificacionesGuardado((prev) => prev.filter((notif) => notif.id !== item.id))
+            }
+            severity={item.severity}
+            sx={{ width: '100%' }}
+          >
+            {item.texto}
+          </Alert>
+        </Snackbar>
+      ))}
     </Box>
   );
 }

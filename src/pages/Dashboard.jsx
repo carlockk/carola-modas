@@ -113,9 +113,9 @@ export default function Dashboard() {
   const bgCard6 = theme.palette.mode === 'dark' ? '#0f172a' : '#f1f8e9';
   const dividerColor = theme.palette.divider;
 
-  const renderProductosVendidosTable = (maxHeight) => (
+  const renderProductosVendidosTable = (maxHeight, usePaper = true) => (
     <TableContainer
-      component={Paper}
+      component={usePaper ? Paper : undefined}
       sx={{
         maxHeight,
         backgroundColor: theme.palette.mode === 'dark' ? '#0b1220' : undefined
@@ -446,7 +446,7 @@ export default function Dashboard() {
         </DialogTitle>
         <DialogContent dividers sx={{ pt: 2 }}>
           {productosResumen.length > 0 ? (
-            renderProductosVendidosTable('70vh')
+            renderProductosVendidosTable('70vh', false)
           ) : (
             <Typography variant="body2" color="text.secondary">
               No hay datos.

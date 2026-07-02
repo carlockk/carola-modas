@@ -2,9 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   Box, Typography, Card, CardContent, useTheme,
   useMediaQuery, Divider, Paper, Stack,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Dialog, DialogContent, DialogTitle, IconButton, Tooltip
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
+import CloseIcon from '@mui/icons-material/Close';
 import {
   PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
@@ -23,6 +26,7 @@ export default function Dashboard() {
   const [rangoFechas, setRangoFechas] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [sinDatosHoy, setSinDatosHoy] = useState(false);
+  const [productosVendidosExpandido, setProductosVendidosExpandido] = useState(false);
 
   useEffect(() => {
     if (rangoFechas.length === 0) {
@@ -108,6 +112,43 @@ export default function Dashboard() {
   const bgCard5 = theme.palette.mode === 'dark' ? '#0b1220' : '#e1f5fe';
   const bgCard6 = theme.palette.mode === 'dark' ? '#0f172a' : '#f1f8e9';
   const dividerColor = theme.palette.divider;
+
+  const renderProductosVendidosTable = (maxHeight) => (
+    <TableContainer
+      component={Paper}
+      sx={{
+        maxHeight,
+        backgroundColor: theme.palette.mode === 'dark' ? '#0b1220' : undefined
+      }}
+    >
+      <Table stickyHeader size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#111827' : undefined }}>
+              Producto
+            </TableCell>
+            <TableCell align="right" sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#111827' : undefined }}>
+              Cantidad
+            </TableCell>
+            <TableCell align="right" sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#111827' : undefined }}>
+              Total
+            </TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {productosResumen.map((producto) => (
+            <TableRow key={producto.nombre}>
+              <TableCell sx={{ color: theme.palette.text.primary }}>{producto.nombre}</TableCell>
+              <TableCell align="right" sx={{ color: theme.palette.text.primary }}>{producto.cantidad}</TableCell>
+              <TableCell align="right" sx={{ color: theme.palette.text.primary }}>
+                ${formatoMoneda(producto.total)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
 
   return (
     <Box sx={{ mt: 4, px: isMobile ? 2 : 4 }}>
@@ -315,45 +356,25 @@ export default function Dashboard() {
 
           <Card elevation={4} sx={{ backgroundColor: bgCard6, flex: 1 }}>
             <CardContent>
-              <Typography variant="subtitle1" fontWeight="bold" color="text.primary">
-                Productos Vendidos
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                <Typography variant="subtitle1" fontWeight="bold" color="text.primary">
+                  Productos Vendidos
+                </Typography>
+                {productosResumen.length > 0 && (
+                  <Tooltip title="Ampliar tabla">
+                    <IconButton
+                      size="small"
+                      onClick={() => setProductosVendidosExpandido(true)}
+                      sx={{ color: theme.palette.text.primary }}
+                    >
+                      <OpenInFullIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
               <Divider sx={{ my: 1, borderColor: dividerColor }} />
               {productosResumen.length > 0 ? (
-                <TableContainer
-                  component={Paper}
-                  sx={{
-                    maxHeight: 320,
-                    backgroundColor: theme.palette.mode === 'dark' ? '#0b1220' : undefined
-                  }}
-                >
-                  <Table stickyHeader size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#111827' : undefined }}>
-                          Producto
-                        </TableCell>
-                        <TableCell align="right" sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#111827' : undefined }}>
-                          Cantidad
-                        </TableCell>
-                        <TableCell align="right" sx={{ backgroundColor: theme.palette.mode === 'dark' ? '#111827' : undefined }}>
-                          Total
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {productosResumen.map((producto) => (
-                        <TableRow key={producto.nombre}>
-                          <TableCell sx={{ color: theme.palette.text.primary }}>{producto.nombre}</TableCell>
-                          <TableCell align="right" sx={{ color: theme.palette.text.primary }}>{producto.cantidad}</TableCell>
-                          <TableCell align="right" sx={{ color: theme.palette.text.primary }}>
-                            ${formatoMoneda(producto.total)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                renderProductosVendidosTable(320)
               ) : (
                 <Typography variant="body2" color="text.secondary">
                   No hay datos.
@@ -406,6 +427,33 @@ export default function Dashboard() {
           {sinDatosHoy ? 'No hay datos en la fecha actual.' : 'Selecciona un rango para ver el resumen.'}
         </Typography>
       )}
+
+      <Dialog
+        open={productosVendidosExpandido}
+        onClose={() => setProductosVendidosExpandido(false)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle sx={{ pr: 7 }}>
+          Productos Vendidos
+          <IconButton
+            aria-label="Cerrar"
+            onClick={() => setProductosVendidosExpandido(false)}
+            sx={{ position: 'absolute', right: 12, top: 12 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers sx={{ pt: 2 }}>
+          {productosResumen.length > 0 ? (
+            renderProductosVendidosTable('70vh')
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No hay datos.
+            </Typography>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

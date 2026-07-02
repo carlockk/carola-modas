@@ -69,6 +69,8 @@ import {
   FILES_BASE
 } from '../services/api';
 
+const ENABLE_STOCK_MINIMO_FEATURE = false;
+
 const normalizarTexto = (valor = '') =>
   String(valor || '')
     .trim()
@@ -1191,7 +1193,7 @@ export default function Insumos() {
         }
       }
 
-      if (soloBajoMinimo) {
+      if (ENABLE_STOCK_MINIMO_FEATURE && soloBajoMinimo) {
         if (Number(insumo.stock_total || 0) > Number(insumo.stock_minimo || 0)) {
           return false;
         }
@@ -1220,6 +1222,9 @@ export default function Insumos() {
 
   const insumosStockBajo = useMemo(
     () =>
+      !ENABLE_STOCK_MINIMO_FEATURE
+        ? []
+        :
       insumos.filter(
         (insumo) =>
           Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0)
@@ -1386,7 +1391,9 @@ export default function Insumos() {
 
   const insumosPaginadosRows = useMemo(() => {
     return insumosPaginados.map((insumo) => {
-      const stockBajo = Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0);
+      const stockBajo = ENABLE_STOCK_MINIMO_FEATURE
+        ? Number(insumo.stock_total || 0) <= Number(insumo.stock_minimo || 0)
+        : false;
       const oculto = insumo.activo === false;
       const seleccionado = selectedInsumoIdsSet.has(insumo._id);
       const imagenUrl = obtenerImagenStockUrl(insumo);
@@ -1529,13 +1536,15 @@ export default function Insumos() {
         </Stack>
 
         <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
-          <Button
-            variant={soloBajoMinimo ? 'contained' : 'outlined'}
-            color="warning"
-            onClick={() => setSoloBajoMinimo((prev) => !prev)}
-          >
-            {soloBajoMinimo ? 'Mostrando: Bajo mínimo' : 'Filtrar: Bajo mínimo'}
-          </Button>
+          {ENABLE_STOCK_MINIMO_FEATURE && (
+            <Button
+              variant={soloBajoMinimo ? 'contained' : 'outlined'}
+              color="warning"
+              onClick={() => setSoloBajoMinimo((prev) => !prev)}
+            >
+              {soloBajoMinimo ? 'Mostrando: Bajo mínimo' : 'Filtrar: Bajo mínimo'}
+            </Button>
+          )}
           <Button
             variant={mostrarInsumosOcultos ? 'contained' : 'outlined'}
             onClick={() => setMostrarInsumosOcultos((prev) => !prev)}

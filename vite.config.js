@@ -23,8 +23,6 @@ export default defineConfig({
             return 'vendor-dates';
           }
           if (id.includes('@mui') || id.includes('@emotion')) return 'vendor-mui';
-          if (id.includes('axios')) return 'vendor-http';
-          if (id.includes('react') || id.includes('scheduler')) return 'vendor-react';
 
           return 'vendor';
         }

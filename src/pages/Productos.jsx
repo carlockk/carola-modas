@@ -1,4 +1,4 @@
-import { useEffect, useState, Fragment, useMemo, useCallback } from 'react';
+import { useEffect, useState, Fragment, useMemo, useCallback, useDeferredValue, startTransition } from 'react';
 
 import {
   Box,
@@ -86,6 +86,54 @@ const buildCategoryLabelMap = (items) => {
   }));
 };
 
+const addStockToMap = (map, key, stock) => {
+  if (!key) return;
+  map.set(key, (map.get(key) || 0) + stock);
+};
+
+const buildStockBodegaLookup = (items) => {
+  const byProduct = new Map();
+  const byProductVariant = new Map();
+  const bySku = new Map();
+  const byAttributes = new Map();
+
+  items.forEach((insumo) => {
+    const productoId = String(
+      typeof insumo?.producto_relacionado === 'object'
+        ? insumo?.producto_relacionado?._id || ''
+        : insumo?.producto_relacionado || ''
+    ).trim();
+    const varianteId = String(
+      typeof insumo?.variante_relacionada === 'object'
+        ? insumo?.variante_relacionada?._id || ''
+        : insumo?.variante_relacionada || ''
+    ).trim();
+    const nombre = normalizarTexto(insumo?.nombre);
+    const sku = normalizarTexto(insumo?.sku);
+    const color = normalizarTexto(insumo?.color);
+    const talla = normalizarTexto(insumo?.talla);
+    const stock = Number(insumo?.stock_total) || 0;
+
+    if (stock <= 0) return;
+
+    if (productoId && varianteId) {
+      addStockToMap(byProductVariant, `${productoId}::${varianteId}`, stock);
+    } else if (productoId) {
+      addStockToMap(byProduct, productoId, stock);
+    }
+
+    if (sku) {
+      addStockToMap(bySku, sku, stock);
+    }
+
+    if (nombre) {
+      addStockToMap(byAttributes, `${nombre}::${color}::${talla}`, stock);
+    }
+  });
+
+  return { byProduct, byProductVariant, bySku, byAttributes };
+};
+
 export default function Productos() {
   const { usuario, selectedLocal } = useAuth();
   const puedeEliminar = usuario?.rol !== 'cajero';
@@ -155,8 +203,10 @@ export default function Productos() {
     return Number(prod.stock) || 0;
   };
 
-  const cargarProductosYCategorias = useCallback(async () => {
-    setLoadingCatalogo(true);
+  const cargarProductosYCategorias = useCallback(async ({ background = false } = {}) => {
+    if (!background) {
+      setLoadingCatalogo(true);
+    }
     try {
       const [resProd, resCat] = await Promise.all([
         obtenerProductos(),
@@ -169,10 +219,24 @@ export default function Productos() {
         categoriasConEtiqueta
       );
 
-      setProductos(productosOrdenados);
-      setCategorias(categoriasConEtiqueta);
-    } finally {
-      setLoadingCatalogo(false);
+      const applyState = () => {
+        setProductos(productosOrdenados);
+        setCategorias(categoriasConEtiqueta);
+        if (!background) {
+          setLoadingCatalogo(false);
+        }
+      };
+
+      if (background) {
+        startTransition(applyState);
+      } else {
+        applyState();
+      }
+    } catch (error) {
+      if (!background) {
+        setLoadingCatalogo(false);
+      }
+      throw error;
     }
   }, []);
 
@@ -181,8 +245,8 @@ export default function Productos() {
     setInsumosBodega(Array.isArray(resInsumos.data) ? resInsumos.data : []);
   }, []);
 
-  const cargarDatos = useCallback(async ({ incluirBodega = true } = {}) => {
-    await cargarProductosYCategorias();
+  const cargarDatos = useCallback(async ({ incluirBodega = true, background = false } = {}) => {
+    await cargarProductosYCategorias({ background });
     if (incluirBodega) {
       cargarInsumosBodega().catch(() => setInsumosBodega([]));
     }
@@ -284,8 +348,10 @@ export default function Productos() {
       crearProducto(data)
         .then(async () => {
           pushNotificacionGuardado(`Se guardo producto: ${nombre}`);
-          await cargarProductosYCategorias();
-          setPaginaActual(1);
+          startTransition(() => {
+            setPaginaActual(1);
+          });
+          await cargarProductosYCategorias({ background: true });
         })
         .catch((err) => {
           pushNotificacionGuardado(
@@ -508,29 +574,12 @@ export default function Productos() {
 
   const handleCerrarImagen = () => setImagenAmpliada(null);
 
-  const stockBodegaIndex = useMemo(
-    () =>
-      insumosBodega.map((insumo) => ({
-        productoId: String(
-          typeof insumo?.producto_relacionado === 'object'
-            ? insumo?.producto_relacionado?._id || ''
-            : insumo?.producto_relacionado || ''
-        ).trim(),
-        varianteId: String(
-          typeof insumo?.variante_relacionada === 'object'
-            ? insumo?.variante_relacionada?._id || ''
-            : insumo?.variante_relacionada || ''
-        ).trim(),
-        nombre: normalizarTexto(insumo?.nombre),
-        sku: normalizarTexto(insumo?.sku),
-        color: normalizarTexto(insumo?.color),
-        talla: normalizarTexto(insumo?.talla),
-        stock: Number(insumo?.stock_total) || 0
-      })),
+  const stockBodegaLookup = useMemo(
+    () => buildStockBodegaLookup(insumosBodega),
     [insumosBodega]
   );
 
-  const obtenerStockBodega = (producto, variante = null) => {
+  const obtenerStockBodega = useCallback((producto, variante = null) => {
     const productoId = String(producto?._id || '').trim();
     const varianteId = String(variante?._id || '').trim();
     const sku = normalizarTexto(variante?.sku || producto?.sku);
@@ -538,31 +587,26 @@ export default function Productos() {
     const color = normalizarTexto(variante?.color);
     const talla = normalizarTexto(variante?.talla);
 
-    const coincidencias = stockBodegaIndex.filter((item) => {
-      if (item.productoId && item.productoId === productoId) {
-        if (variante) {
-          if (item.varianteId && item.varianteId === varianteId) return true;
-          if (item.sku && sku && item.sku === sku) return true;
-          if (item.color === color && item.talla === talla) return true;
-          return false;
-        }
-        return !item.varianteId;
-      }
+    if (variante) {
+      const exactVariant = stockBodegaLookup.byProductVariant.get(`${productoId}::${varianteId}`);
+      if (typeof exactVariant === 'number') return exactVariant;
 
-      if (variante) {
-        if (item.sku && sku && item.sku === sku) return true;
-        return item.nombre === nombre && item.color === color && item.talla === talla;
-      }
+      const exactSku = stockBodegaLookup.bySku.get(sku);
+      if (typeof exactSku === 'number') return exactSku;
 
-      return item.nombre === nombre && !item.color && !item.talla;
-    });
+      return stockBodegaLookup.byAttributes.get(`${nombre}::${color}::${talla}`) || 0;
+    }
 
-    return coincidencias.reduce((acc, item) => acc + (Number(item.stock) || 0), 0);
-  };
+    const exactProduct = stockBodegaLookup.byProduct.get(productoId);
+    if (typeof exactProduct === 'number') return exactProduct;
 
+    return stockBodegaLookup.byAttributes.get(`${nombre}::::`) || 0;
+  }, [stockBodegaLookup]);
+
+  const deferredBusqueda = useDeferredValue(busqueda);
   const busquedaNormalizada = useMemo(
-    () => busqueda.toLowerCase().trim(),
-    [busqueda]
+    () => deferredBusqueda.toLowerCase().trim(),
+    [deferredBusqueda]
   );
 
   const filtrarProductos = useMemo(

@@ -61,6 +61,7 @@ export default function PedidosWebWatcher() {
   const navigate = useNavigate();
   const [alertaPedido, setAlertaPedido] = useState(null);
   const pollingRef = useRef(null);
+  const requestInFlightRef = useRef(false);
 
   const localId = useMemo(() => getLocalId(selectedLocal, usuario), [selectedLocal, usuario]);
   const puedeGestionar = ['admin', 'superadmin', 'cajero'].includes(usuario?.rol || '');
@@ -85,6 +86,11 @@ export default function PedidosWebWatcher() {
     };
 
     const revisarPedidos = async () => {
+      if (document.visibilityState === 'hidden' || requestInFlightRef.current) {
+        return;
+      }
+
+      requestInFlightRef.current = true;
       try {
         const res = await obtenerPedidosWeb();
         const pedidos = Array.isArray(res.data) ? res.data : [];
@@ -103,6 +109,8 @@ export default function PedidosWebWatcher() {
         }
       } catch {
         // ignore polling errors
+      } finally {
+        requestInFlightRef.current = false;
       }
     };
 

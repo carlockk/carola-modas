@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, useCallback, useDeferredValue, startTransition } from 'react';
 import {
   Box,
   Typography,
@@ -281,8 +281,10 @@ export default function POS() {
     return ordenados;
   };
 
-  const cargarDatos = async () => {
-    setLoadingCatalogo(true);
+  const cargarDatos = useCallback(async ({ background = false } = {}) => {
+    if (!background) {
+      setLoadingCatalogo(true);
+    }
     try {
       const [resProd, resCat] = await Promise.all([
         obtenerProductos(),
@@ -305,12 +307,26 @@ export default function POS() {
         categoriasOrdenadas = [...ordenadas, ...faltantes];
       }
 
-      setProductos(resProd.data);
-      setCategorias(categoriasOrdenadas);
-    } finally {
-      setLoadingCatalogo(false);
+      const applyState = () => {
+        setProductos(resProd.data);
+        setCategorias(categoriasOrdenadas);
+        if (!background) {
+          setLoadingCatalogo(false);
+        }
+      };
+
+      if (background) {
+        startTransition(applyState);
+      } else {
+        applyState();
+      }
+    } catch (error) {
+      if (!background) {
+        setLoadingCatalogo(false);
+      }
+      throw error;
     }
-  };
+  }, [userKey]);
 
   useEffect(() => {
     cargarDatos();
@@ -321,7 +337,7 @@ export default function POS() {
 
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);
-  }, [selectedLocal?._id]);
+  }, [selectedLocal?._id, cargarDatos, userKey]);
 
   useEffect(() => {
     const comanda = location.state?.comandaPendiente;
@@ -415,11 +431,15 @@ export default function POS() {
     abrirCarritoPersistente();
   };
 
-  const obtenerCantidadEnCarrito = (productoId) =>
-    carrito.reduce(
-      (total, item) => total + (String(item._id) === String(productoId) ? Number(item.cantidad) || 0 : 0),
-      0
-    );
+  const cantidadesPorProducto = useMemo(() => {
+    const map = new Map();
+    carrito.forEach((item) => {
+      const key = String(item._id || '');
+      if (!key) return;
+      map.set(key, (map.get(key) || 0) + (Number(item.cantidad) || 0));
+    });
+    return map;
+  }, [carrito]);
 
   const cantidadTotalCarrito = carrito.reduce(
     (total, item) => total + (Number(item.cantidad) || 0),
@@ -471,7 +491,7 @@ export default function POS() {
     crearProducto(data)
       .then(async () => {
         pushNotificacionGuardado(`Se guardo producto: ${nombre}`);
-        await cargarDatos();
+        await cargarDatos({ background: true });
       })
       .catch((err) => {
         pushNotificacionGuardado(
@@ -481,7 +501,8 @@ export default function POS() {
       });
   };
 
-  const busquedaLower = busqueda.trim().toLowerCase();
+  const deferredBusqueda = useDeferredValue(busqueda);
+  const busquedaLower = deferredBusqueda.trim().toLowerCase();
 
   const productosOrdenados = useMemo(
     () => ordenarProductosPorCategorias(productos, categorias),
@@ -797,7 +818,7 @@ export default function POS() {
                 : prod.imagen_url || '';
 
               const hayVariantes = tieneVariantes(prod);
-              const cantidadEnCarrito = obtenerCantidadEnCarrito(prod._id);
+              const cantidadEnCarrito = cantidadesPorProducto.get(String(prod._id)) || 0;
 
               return (
                 <Box

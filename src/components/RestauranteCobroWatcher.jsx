@@ -44,6 +44,7 @@ export default function RestauranteCobroWatcher() {
   const { usuario, selectedLocal } = useAuth();
   const navigate = useNavigate();
   const pollingRef = useRef(null);
+  const requestInFlightRef = useRef(false);
   const [alerta, setAlerta] = useState(null);
 
   const puedeCobrar = ['admin', 'superadmin', 'cajero'].includes(usuario?.rol || '');
@@ -67,6 +68,11 @@ export default function RestauranteCobroWatcher() {
     };
 
     const revisar = async () => {
+      if (document.visibilityState === 'hidden' || requestInFlightRef.current) {
+        return;
+      }
+
+      requestInFlightRef.current = true;
       try {
         const res = await obtenerComandasPendientesCaja();
         const pendientes = Array.isArray(res.data) ? res.data : [];
@@ -80,6 +86,8 @@ export default function RestauranteCobroWatcher() {
         }
       } catch {
         // ignore
+      } finally {
+        requestInFlightRef.current = false;
       }
     };
 

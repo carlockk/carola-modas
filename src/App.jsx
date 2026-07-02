@@ -8,10 +8,12 @@ import { useTheme } from '@mui/material/styles';
 import { useAuth } from './context/AuthContext';
 import { CajaProvider } from './context/CajaContext';
 
-import Sidebar from './components/Sidebar';
-import PedidosWebWatcher from './components/PedidosWebWatcher';
-import RestauranteCobroWatcher from './components/RestauranteCobroWatcher';
 import { LOCAL_REQUIRED_EVENT } from './services/api';
+
+const Sidebar = lazy(() => import('./components/Sidebar'));
+const PedidosWebWatcher = lazy(() => import('./components/PedidosWebWatcher'));
+const RestauranteCobroWatcher = lazy(() => import('./components/RestauranteCobroWatcher'));
+const ENABLE_BACKGROUND_WATCHERS = import.meta.env.VITE_ENABLE_BACKGROUND_WATCHERS === 'true';
 
 const Productos = lazy(() => import('./pages/Productos'));
 const CrearProducto = lazy(() => import('./pages/CrearProducto'));
@@ -49,6 +51,7 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [localNoticeOpen, setLocalNoticeOpen] = useState(false);
   const [localNoticeMessage, setLocalNoticeMessage] = useState('');
+  const [backgroundFeaturesReady, setBackgroundFeaturesReady] = useState(false);
   const location = useLocation();
   const isLoginRoute = location.pathname === '/login';
   const esMesero = usuario?.rol === 'mesero';
@@ -70,6 +73,34 @@ export default function App() {
     return () => window.removeEventListener(LOCAL_REQUIRED_EVENT, handler);
   }, []);
 
+  useEffect(() => {
+    if (isLoginRoute) {
+      setBackgroundFeaturesReady(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const activate = () => {
+      if (!cancelled) {
+        setBackgroundFeaturesReady(true);
+      }
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(activate, { timeout: 1200 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback?.(idleId);
+      };
+    }
+
+    const timeoutId = window.setTimeout(activate, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [isLoginRoute]);
+
   return (
     <CajaProvider>
       <Box sx={{ display: isLoginRoute ? 'block' : 'flex', minHeight: '100vh' }}>
@@ -89,17 +120,23 @@ export default function App() {
         )}
 
         {!isLoginRoute && (
-          <Sidebar
-            mobileOpen={mobileOpen}
-            toggleDrawer={toggleDrawer}
-            collapsed={!isMobile && sidebarCollapsed}
-            onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
-            drawerWidth={activeDrawerWidth}
-          />
+          <Suspense fallback={null}>
+            <Sidebar
+              mobileOpen={mobileOpen}
+              toggleDrawer={toggleDrawer}
+              collapsed={!isMobile && sidebarCollapsed}
+              onToggleCollapsed={() => setSidebarCollapsed((prev) => !prev)}
+              drawerWidth={activeDrawerWidth}
+            />
+          </Suspense>
         )}
 
-        {!isLoginRoute && !esMesero && <PedidosWebWatcher />}
-        {!isLoginRoute && !esMesero && <RestauranteCobroWatcher />}
+        {ENABLE_BACKGROUND_WATCHERS && backgroundFeaturesReady && !esMesero && (
+          <Suspense fallback={null}>
+            <PedidosWebWatcher />
+            <RestauranteCobroWatcher />
+          </Suspense>
+        )}
 
         <Box
           component="main"

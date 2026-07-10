@@ -485,11 +485,24 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
             color: theme.palette.text.primary,
             boxSizing: 'border-box',
             borderTopLeftRadius: isMobile ? 12 : 0,
-            borderTopRightRadius: isMobile ? 12 : 0
+            borderTopRightRadius: isMobile ? 12 : 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
           }
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            mb: 1,
+            pb: 1,
+            borderBottom: '1px solid',
+            borderColor: theme.palette.divider
+          }}
+        >
           <Typography variant="h6" gutterBottom sx={{ mb: 0 }}>🛒 Carrito</Typography>
           <IconButton size="small" onClick={onClose} aria-label="Cerrar carrito">
             <Close fontSize="small" />
@@ -540,282 +553,342 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
         ) : carrito.length === 0 ? (
           <Typography variant="body1" sx={{ mt: 2 }}>El carrito está vacío.</Typography>
         ) : (
-          <>
-            {carrito.map(item => {
-              const sinStockExtra =
-                typeof item.stockDisponible === 'number' && item.cantidad >= item.stockDisponible;
-              const itemId = item.idCarrito || item._id;
-              const dragOffset = getDragOffset(itemId);
-              return (
-                <Box
-                  key={itemId}
-                  sx={{
-                    position: 'relative',
-                    overflow: 'hidden',
-                    borderBottom: '1px solid',
-                    borderColor: theme.palette.divider,
-                    '&:hover .cart-row-delete': {
-                      opacity: 1,
-                      pointerEvents: 'auto'
-                    }
-                  }}
-                >
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      inset: 0,
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      alignItems: 'stretch',
-                      backgroundColor: 'error.main'
-                    }}
-                  >
-                    <Button
-                      color="inherit"
-                      onClick={() => eliminarProducto(itemId)}
-                      sx={{
-                        width: 96,
-                        minWidth: 96,
-                        color: '#fff',
-                        borderRadius: 0,
-                        textTransform: 'none',
-                        fontWeight: 800
-                      }}
-                    >
-                      Eliminar
-                    </Button>
-                  </Box>
-
-                  <Box
-                    onPointerDown={(event) => iniciarArrastre(event, itemId)}
-                    onPointerMove={(event) => moverArrastre(event, itemId)}
-                    onPointerUp={() => terminarArrastre(itemId)}
-                    onPointerCancel={() => setDragState(null)}
-                    sx={{
-                      position: 'relative',
-                      py: 1.15,
-                      backgroundColor: theme.palette.background.default,
-                      transform: `translateX(${dragOffset}px)`,
-                      transition: dragState?.id === itemId ? 'none' : 'transform 0.16s ease',
-                      touchAction: 'pan-y'
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                      <Box
-                        onClick={() => abrirEditorItem(item)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            abrirEditorItem(item);
-                          }
-                        }}
-                        sx={{
-                          flex: 1,
-                          minWidth: 0,
-                          cursor: 'pointer',
-                          borderRadius: 1,
-                          '&:focus-visible': {
-                            outline: '2px solid',
-                            outlineColor: 'primary.main',
-                            outlineOffset: 2
-                          }
-                        }}
-                      >
-                        <Typography
-                          fontWeight={700}
-                          sx={{
-                            fontSize: '0.92rem',
-                            lineHeight: 1.2,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}
-                        >
-                          {item.nombre}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.25 }}>
-                          ${Number(item.precio || 0).toLocaleString('es-CL')} c/u
-                          {item.varianteNombre ? ` · ${item.varianteNombre}` : ''}
-                          {typeof item.stockDisponible === 'number' ? ` · Disp. ${item.stockDisponible}` : ''}
-                        </Typography>
-                        {Array.isArray(item.atributos) && item.atributos.length > 0 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.25 }}>
-                            {item.atributos.map((attr) => `${attr.nombre}: ${attr.valor}`).join(' · ')}
-                          </Typography>
-                        )}
-                        {Array.isArray(item.agregados) && item.agregados.length > 0 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.25 }}>
-                            {item.agregados
-                              .map((agg) => `+ ${agg.nombre}${Number(agg.precio) > 0 ? ` ($${Number(agg.precio).toFixed(0)})` : ''}`)
-                              .join(' · ')}
-                          </Typography>
-                        )}
-                        {item.descuento && (
-                          <Typography variant="caption" color="success.main" sx={{ display: 'block', lineHeight: 1.25 }}>
-                            Descuento: {item.descuento.nombre} (-${(calcularMontoDescuento(item.precio, item.descuento) * item.cantidad).toLocaleString('es-CL')})
-                          </Typography>
-                        )}
-                      </Box>
-
-                      <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>
-                        <IconButton size="small" onClick={() => actualizarCantidad(item.idCarrito, item.cantidad - 1)}>
-                          <Remove fontSize="small" />
-                        </IconButton>
-                        <Typography sx={{ minWidth: 22, textAlign: 'center', fontWeight: 700 }}>
-                          {item.cantidad}
-                        </Typography>
-                        <IconButton
-                          size="small"
-                          onClick={() => actualizarCantidad(item.idCarrito, item.cantidad + 1)}
-                          disabled={sinStockExtra}
-                        >
-                          <Add fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          className="cart-row-delete"
-                          size="small"
-                          onClick={() => eliminarProducto(itemId)}
-                          aria-label={`Eliminar ${item.nombre}`}
-                          sx={{
-                            opacity: { xs: 1, sm: 0 },
-                            pointerEvents: { xs: 'auto', sm: 'none' },
-                            color: 'error.main',
-                            transition: 'opacity 0.15s ease'
-                          }}
-                        >
-                          <DeleteOutline fontSize="small" />
-                        </IconButton>
-                      </Stack>
-                    </Box>
-                    {sinStockExtra && (
-                      <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.25 }}>
-                        Alcanzaste el stock disponible
-                      </Typography>
-                    )}
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      placeholder="Observación"
-                      variant="outlined"
-                      value={item.observacion}
-                      onChange={e => actualizarObservacion(item.idCarrito, e.target.value)}
-                      sx={{
-                        mt: 0.65,
-                        '& .MuiInputBase-input': {
-                          py: 0.65,
-                          fontSize: '0.82rem'
-                        }
-                      }}
-                    />
-                  </Box>
-                </Box>
-              );
-            })}
-
-            <TextField
-              select fullWidth size="small" label="Descuento para toda la venta" sx={{ mt: 2 }}
-              value={descuentoVenta && !descuentoVenta.descuentoId ? '__manual__' : (descuentoVenta?.descuentoId || '')}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (!value) {
-                  limpiarDescuentoVenta();
-                  return;
+          <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                pr: 0.5,
+                mr: -0.5,
+                pb: 1,
+                scrollBehavior: 'smooth',
+                scrollbarWidth: 'thin',
+                scrollbarColor: `${theme.palette.grey[400]} transparent`,
+                '&::-webkit-scrollbar': {
+                  width: 8
+                },
+                '&::-webkit-scrollbar-track': {
+                  background: 'transparent'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: theme.palette.grey[400],
+                  borderRadius: 999
+                },
+                '&::-webkit-scrollbar-thumb:hover': {
+                  backgroundColor: theme.palette.grey[500]
                 }
-                const descuentoSeleccionado =
-                  descuentos.find((item) => String(item._id) === String(value)) || null;
-                actualizarDescuentoVenta(descuentoSeleccionado);
               }}
             >
-              <MenuItem value="">Sin descuento general</MenuItem>
-              {descuentoVenta && !descuentoVenta.descuentoId && (
-                <MenuItem value="__manual__" disabled>
-                  Descuento manual activo
-                </MenuItem>
-              )}
-              {descuentos.map((descuento) => (
-                <MenuItem key={descuento._id} value={descuento._id}>
-                  {descuento.nombre} ({descuento.tipo === 'porcentaje' ? `${descuento.valor}%` : `$${Number(descuento.valor).toLocaleString('es-CL')}`})
-                </MenuItem>
-              ))}
-            </TextField>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
-              <TextField
-                select
-                size="small"
-                label="Tipo manual"
-                value={manualVentaTipo}
-                onChange={(e) => setManualVentaTipo(e.target.value)}
-                sx={{ minWidth: { sm: 140 } }}
-              >
-                <MenuItem value="fijo">Monto fijo</MenuItem>
-                <MenuItem value="porcentaje">Porcentaje</MenuItem>
-              </TextField>
-              <TextField
-                size="small"
-                type="number"
-                label={manualVentaTipo === 'porcentaje' ? 'Porcentaje' : 'Monto'}
-                value={manualVentaValor}
-                onChange={(e) => setManualVentaValor(e.target.value)}
-                inputProps={{
-                  min: 0,
-                  max: manualVentaTipo === 'porcentaje' ? 100 : undefined,
-                  step: manualVentaTipo === 'porcentaje' ? 1 : 100
-                }}
-                fullWidth
-              />
-              <Button variant="outlined" onClick={aplicarDescuentoManualVenta}>
-                Aplicar manual
-              </Button>
-            </Stack>
-            <Box sx={{ mt: 2, textAlign: 'right' }}>
-              <Typography variant="body2">Subtotal: ${subtotal.toLocaleString('es-CL')}</Typography>
-              {descuentoTotal > 0 && (
-                <Typography variant="body2" color="success.main">Descuentos: -${descuentoTotal.toLocaleString('es-CL')}</Typography>
-              )}
-              <Typography variant="h6">Total: <strong>${total.toLocaleString('es-CL')}</strong></Typography>
+              {carrito.map(item => {
+                const sinStockExtra =
+                  typeof item.stockDisponible === 'number' && item.cantidad >= item.stockDisponible;
+                const itemId = item.idCarrito || item._id;
+                const dragOffset = getDragOffset(itemId);
+                return (
+                  <Box
+                    key={itemId}
+                    sx={{
+                      position: 'relative',
+                      overflow: 'hidden',
+                      border: '1px solid',
+                      borderColor: theme.palette.divider,
+                      borderRadius: 2,
+                      mb: 1,
+                      backgroundColor: theme.palette.background.paper,
+                      boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                      '&:hover .cart-row-delete': {
+                        opacity: 1,
+                        pointerEvents: 'auto'
+                      }
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        alignItems: 'stretch',
+                        backgroundColor: 'error.main'
+                      }}
+                    >
+                      <Button
+                        color="inherit"
+                        onClick={() => eliminarProducto(itemId)}
+                        sx={{
+                          width: 96,
+                          minWidth: 96,
+                          color: '#fff',
+                          borderRadius: 0,
+                          textTransform: 'none',
+                          fontWeight: 800
+                        }}
+                      >
+                        Eliminar
+                      </Button>
+                    </Box>
+
+                    <Box
+                      onPointerDown={(event) => iniciarArrastre(event, itemId)}
+                      onPointerMove={(event) => moverArrastre(event, itemId)}
+                      onPointerUp={() => terminarArrastre(itemId)}
+                      onPointerCancel={() => setDragState(null)}
+                      sx={{
+                        position: 'relative',
+                        px: 1.1,
+                        py: 1.15,
+                        backgroundColor: theme.palette.background.paper,
+                        transform: `translateX(${dragOffset}px)`,
+                        transition: dragState?.id === itemId ? 'none' : 'transform 0.16s ease',
+                        touchAction: 'pan-y'
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <Box
+                          onClick={() => abrirEditorItem(item)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              abrirEditorItem(item);
+                            }
+                          }}
+                          sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                            '&:focus-visible': {
+                              outline: '2px solid',
+                              outlineColor: 'primary.main',
+                              outlineOffset: 2
+                            }
+                          }}
+                        >
+                          <Typography
+                            fontWeight={700}
+                            sx={{
+                              fontSize: '0.92rem',
+                              lineHeight: 1.2,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis'
+                            }}
+                          >
+                            {item.nombre}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.25 }}>
+                            ${Number(item.precio || 0).toLocaleString('es-CL')} c/u
+                            {item.varianteNombre ? ` · ${item.varianteNombre}` : ''}
+                            {typeof item.stockDisponible === 'number' ? ` · Disp. ${item.stockDisponible}` : ''}
+                          </Typography>
+                          {Array.isArray(item.atributos) && item.atributos.length > 0 && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.25 }}>
+                              {item.atributos.map((attr) => `${attr.nombre}: ${attr.valor}`).join(' · ')}
+                            </Typography>
+                          )}
+                          {Array.isArray(item.agregados) && item.agregados.length > 0 && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.25 }}>
+                              {item.agregados
+                                .map((agg) => `+ ${agg.nombre}${Number(agg.precio) > 0 ? ` ($${Number(agg.precio).toFixed(0)})` : ''}`)
+                                .join(' · ')}
+                            </Typography>
+                          )}
+                          {item.descuento && (
+                            <Typography variant="caption" color="success.main" sx={{ display: 'block', lineHeight: 1.25 }}>
+                              Descuento: {item.descuento.nombre} (-${(calcularMontoDescuento(item.precio, item.descuento) * item.cantidad).toLocaleString('es-CL')})
+                            </Typography>
+                          )}
+                        </Box>
+
+                        <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flexShrink: 0 }}>
+                          <IconButton size="small" onClick={() => actualizarCantidad(item.idCarrito, item.cantidad - 1)}>
+                            <Remove fontSize="small" />
+                          </IconButton>
+                          <Typography sx={{ minWidth: 22, textAlign: 'center', fontWeight: 700 }}>
+                            {item.cantidad}
+                          </Typography>
+                          <IconButton
+                            size="small"
+                            onClick={() => actualizarCantidad(item.idCarrito, item.cantidad + 1)}
+                            disabled={sinStockExtra}
+                          >
+                            <Add fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            className="cart-row-delete"
+                            size="small"
+                            onClick={() => eliminarProducto(itemId)}
+                            aria-label={`Eliminar ${item.nombre}`}
+                            sx={{
+                              opacity: { xs: 1, sm: 0 },
+                              pointerEvents: { xs: 'auto', sm: 'none' },
+                              color: 'error.main',
+                              transition: 'opacity 0.15s ease'
+                            }}
+                          >
+                            <DeleteOutline fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </Box>
+                      {sinStockExtra && (
+                        <Typography variant="caption" color="error" sx={{ display: 'block', mt: 0.25 }}>
+                          Alcanzaste el stock disponible
+                        </Typography>
+                      )}
+
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Observación"
+                        variant="outlined"
+                        value={item.observacion}
+                        onChange={e => actualizarObservacion(item.idCarrito, e.target.value)}
+                        sx={{
+                          mt: 0.65,
+                          '& .MuiInputBase-input': {
+                            py: 0.65,
+                            fontSize: '0.82rem'
+                          }
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                );
+              })}
             </Box>
 
-            {cajaVerificada && !cajaDisponible && (
-              <Alert severity="warning" sx={{ mt: 2 }}>
-                No puedes iniciar el POS si no abres la caja.
-              </Alert>
-            )}
-
-            <Stack spacing={1} mt={2}>
-              <Button
-                variant="contained"
-                color="primary"
-                fullWidth
-                onClick={() => setModalOpen(true)}
-                disabled={loading || !cajaDisponible}
-                sx={{ py: 1.2, fontWeight: 600 }}
-              >
-                {cajaDisponible ? (loading ? 'Procesando...' : '💳 Finalizar Venta') : 'Abre la caja para vender'}
-              </Button>
-              <Button variant="text" color="error" onClick={vaciarCarrito}>
-                🗑 Vaciar Carrito
-              </Button>
-
-              {/* ✅ Campo para guardar ticket */}
+            <Box
+              sx={{
+                flexShrink: 0,
+                position: 'sticky',
+                bottom: 0,
+                pt: 2,
+                mt: 1,
+                px: 1.25,
+                pb: 1,
+                borderTop: '1px solid',
+                borderColor: theme.palette.divider,
+                bgcolor: theme.palette.background.default,
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                boxShadow: '0 -10px 24px rgba(15, 23, 42, 0.10)',
+                zIndex: 1,
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: -20,
+                  height: 20,
+                  pointerEvents: 'none',
+                  background: `linear-gradient(to top, ${theme.palette.background.default}, transparent)`
+                }
+              }}
+            >
               <TextField
-                size="small"
-                fullWidth
-                variant="outlined"
-                label="Nombre del ticket"
-                value={ticketNombre}
-                onChange={(e) => setTicketNombre(e.target.value)}
-              />
-              <Button
-                variant="outlined"
-                fullWidth
-                onClick={handleGuardarTicket}
+                select fullWidth size="small" label="Descuento para toda la venta"
+                value={descuentoVenta && !descuentoVenta.descuentoId ? '__manual__' : (descuentoVenta?.descuentoId || '')}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (!value) {
+                    limpiarDescuentoVenta();
+                    return;
+                  }
+                  const descuentoSeleccionado =
+                    descuentos.find((item) => String(item._id) === String(value)) || null;
+                  actualizarDescuentoVenta(descuentoSeleccionado);
+                }}
               >
-                📝 Guardar Ticket
-              </Button>
-            </Stack>
-          </>
+                <MenuItem value="">Sin descuento general</MenuItem>
+                {descuentoVenta && !descuentoVenta.descuentoId && (
+                  <MenuItem value="__manual__" disabled>
+                    Descuento manual activo
+                  </MenuItem>
+                )}
+                {descuentos.map((descuento) => (
+                  <MenuItem key={descuento._id} value={descuento._id}>
+                    {descuento.nombre} ({descuento.tipo === 'porcentaje' ? `${descuento.valor}%` : `$${Number(descuento.valor).toLocaleString('es-CL')}`})
+                  </MenuItem>
+                ))}
+              </TextField>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+                <TextField
+                  select
+                  size="small"
+                  label="Tipo manual"
+                  value={manualVentaTipo}
+                  onChange={(e) => setManualVentaTipo(e.target.value)}
+                  sx={{ minWidth: { sm: 140 } }}
+                >
+                  <MenuItem value="fijo">Monto fijo</MenuItem>
+                  <MenuItem value="porcentaje">Porcentaje</MenuItem>
+                </TextField>
+                <TextField
+                  size="small"
+                  type="number"
+                  label={manualVentaTipo === 'porcentaje' ? 'Porcentaje' : 'Monto'}
+                  value={manualVentaValor}
+                  onChange={(e) => setManualVentaValor(e.target.value)}
+                  inputProps={{
+                    min: 0,
+                    max: manualVentaTipo === 'porcentaje' ? 100 : undefined,
+                    step: manualVentaTipo === 'porcentaje' ? 1 : 100
+                  }}
+                  fullWidth
+                />
+                <Button variant="outlined" onClick={aplicarDescuentoManualVenta}>
+                  Aplicar manual
+                </Button>
+              </Stack>
+              <Box sx={{ mt: 2, textAlign: 'right' }}>
+                <Typography variant="body2">Subtotal: ${subtotal.toLocaleString('es-CL')}</Typography>
+                {descuentoTotal > 0 && (
+                  <Typography variant="body2" color="success.main">Descuentos: -${descuentoTotal.toLocaleString('es-CL')}</Typography>
+                )}
+                <Typography variant="h6">Total: <strong>${total.toLocaleString('es-CL')}</strong></Typography>
+              </Box>
+
+              {cajaVerificada && !cajaDisponible && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  No puedes iniciar el POS si no abres la caja.
+                </Alert>
+              )}
+
+              <Stack spacing={1} mt={2}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  fullWidth
+                  onClick={() => setModalOpen(true)}
+                  disabled={loading || !cajaDisponible}
+                  sx={{ py: 1.2, fontWeight: 600 }}
+                >
+                  {cajaDisponible ? (loading ? 'Procesando...' : '💳 Finalizar Venta') : 'Abre la caja para vender'}
+                </Button>
+                <Button variant="text" color="error" onClick={vaciarCarrito}>
+                  🗑 Vaciar Carrito
+                </Button>
+
+                <TextField
+                  size="small"
+                  fullWidth
+                  variant="outlined"
+                  label="Nombre del ticket"
+                  value={ticketNombre}
+                  onChange={(e) => setTicketNombre(e.target.value)}
+                />
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={handleGuardarTicket}
+                >
+                  📝 Guardar Ticket
+                </Button>
+              </Stack>
+            </Box>
+          </Box>
         )}
       </Drawer>
 

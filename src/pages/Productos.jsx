@@ -45,6 +45,8 @@ import {
   crearProducto,
   usarProductoBaseEnLocal,
   obtenerLocales,
+  registrarMermaProducto,
+  obtenerMermasProducto,
   FILES_BASE,
 } from '../services/api';
 
@@ -146,6 +148,8 @@ export default function Productos() {
   const [openEditar, setOpenEditar] = useState(false);
   const [detalleAbierto, setDetalleAbierto] = useState(null);
   const [productoStockModal, setProductoStockModal] = useState(null);
+  const [productoMermaModal, setProductoMermaModal] = useState(null);
+  const [productoMermasHistorial, setProductoMermasHistorial] = useState(null);
   const [openCrear, setOpenCrear] = useState(false);
   const [openBase, setOpenBase] = useState(false);
   const [openBaseCreate, setOpenBaseCreate] = useState(false);
@@ -171,9 +175,16 @@ export default function Productos() {
   const [baseError, setBaseError] = useState('');
   const [baseGuardando, setBaseGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const [mensajeTipo, setMensajeTipo] = useState('success');
   const [notificacionesGuardado, setNotificacionesGuardado] = useState([]);
   const [imagenAmpliada, setImagenAmpliada] = useState(null);
   const [loadingCatalogo, setLoadingCatalogo] = useState(true);
+  const [mermaCantidad, setMermaCantidad] = useState('');
+  const [mermaNota, setMermaNota] = useState('');
+  const [mermaVarianteId, setMermaVarianteId] = useState('');
+  const [guardandoMerma, setGuardandoMerma] = useState(false);
+  const [mermasHistorial, setMermasHistorial] = useState([]);
+  const [cargandoMermas, setCargandoMermas] = useState(false);
 
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
@@ -202,6 +213,17 @@ export default function Productos() {
     // Si no hay variantes, usa stock base
     return Number(prod.stock) || 0;
   };
+
+  const obtenerStockObjetivoMerma = useCallback((producto, varianteId = '') => {
+    if (!producto) return 0;
+    if (tieneVariantes(producto)) {
+      const variante = (producto.variantes || []).find(
+        (item) => String(item._id || '') === String(varianteId || '')
+      );
+      return Number(variante?.stock) || 0;
+    }
+    return Number(producto.stock) || 0;
+  }, []);
 
   const cargarProductosYCategorias = useCallback(async ({ background = false } = {}) => {
     if (!background) {
@@ -327,8 +349,51 @@ export default function Productos() {
     await cargarProductosYCategorias();
     setPaginaActual(1);
     setOpenCrear(false);
+    setMensajeTipo('success');
     setMensaje('Producto creado correctamente');
   };
+
+  const handleAbrirMerma = useCallback((producto) => {
+    setProductoMermaModal(producto);
+    setMermaCantidad('');
+    setMermaNota('');
+    setMermaVarianteId(
+      Array.isArray(producto?.variantes) && producto.variantes.length > 0
+        ? String(producto.variantes[0]?._id || '')
+        : ''
+    );
+  }, []);
+
+  const handleCerrarMerma = useCallback(() => {
+    if (guardandoMerma) return;
+    setProductoMermaModal(null);
+    setMermaCantidad('');
+    setMermaNota('');
+    setMermaVarianteId('');
+  }, [guardandoMerma]);
+
+  const handleAbrirHistorialMermas = useCallback(async (producto) => {
+    if (!producto?._id) return;
+    setProductoMermasHistorial(producto);
+    setMermasHistorial([]);
+    setCargandoMermas(true);
+    try {
+      const res = await obtenerMermasProducto(producto._id);
+      setMermasHistorial(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      setMensajeTipo('error');
+      setMensaje(err?.response?.data?.error || 'No se pudo cargar el historial de mermas.');
+      setProductoMermasHistorial(null);
+    } finally {
+      setCargandoMermas(false);
+    }
+  }, []);
+
+  const handleCerrarHistorialMermas = useCallback(() => {
+    setProductoMermasHistorial(null);
+    setMermasHistorial([]);
+    setCargandoMermas(false);
+  }, []);
 
   const pushNotificacionGuardado = useCallback((texto, severity = 'success') => {
     setNotificacionesGuardado((prev) => [
@@ -432,6 +497,7 @@ export default function Productos() {
       setMensaje(
         `Carga masiva finalizada: ${agregados} agregados, ${existentes} ya existentes, ${errores} con error`
       );
+      setMensajeTipo('success');
       await cargarProductosYCategorias();
       setOpenBase(false);
     } catch (_err) {
@@ -481,6 +547,7 @@ export default function Productos() {
       );
       setOpenBaseUse(false);
       setOpenBase(false);
+      setMensajeTipo('success');
       setMensaje('Producto agregado desde catalogo base');
       cargarProductosYCategorias();
     } catch (err) {
@@ -534,6 +601,7 @@ export default function Productos() {
       resetBaseForm();
       setOpenBaseCreate(false);
       handleAbrirBases();
+      setMensajeTipo('success');
       setMensaje('Producto base creado');
     } catch (err) {
       setBaseError(err?.response?.data?.error || 'No se pudo crear el producto base');
@@ -543,6 +611,63 @@ export default function Productos() {
   };
 
   const handleCerrarMensaje = () => setMensaje('');
+
+  const handleRegistrarMerma = useCallback(async () => {
+    if (!productoMermaModal?._id) return;
+
+    const cantidad = Number(mermaCantidad);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) {
+      setMensajeTipo('error');
+      setMensaje('La cantidad de merma debe ser mayor a 0.');
+      return;
+    }
+
+    if (!Number.isInteger(cantidad)) {
+      setMensajeTipo('error');
+      setMensaje('La cantidad de merma debe ser un numero entero.');
+      return;
+    }
+
+    if (tieneVariantes(productoMermaModal) && !mermaVarianteId) {
+      setMensajeTipo('error');
+      setMensaje('Debes seleccionar una variante para registrar la merma.');
+      return;
+    }
+
+    const stockDisponible = obtenerStockObjetivoMerma(productoMermaModal, mermaVarianteId);
+    if (cantidad > stockDisponible) {
+      setMensajeTipo('error');
+      setMensaje(`No puedes mermar ${cantidad}. Stock disponible: ${stockDisponible}.`);
+      return;
+    }
+
+    try {
+      setGuardandoMerma(true);
+      await registrarMermaProducto(productoMermaModal._id, {
+        cantidad,
+        varianteId: mermaVarianteId || undefined,
+        nota: mermaNota
+      });
+      handleCerrarMerma();
+      await cargarProductosYCategorias();
+      setMensajeTipo('success');
+      setMensaje('Merma registrada correctamente');
+    } catch (err) {
+      setMensajeTipo('error');
+      setMensaje(err?.response?.data?.error || 'No se pudo registrar la merma.');
+    } finally {
+      setGuardandoMerma(false);
+    }
+  }, [
+    cargarProductosYCategorias,
+    guardandoMerma,
+    handleCerrarMerma,
+    mermaCantidad,
+    mermaNota,
+    mermaVarianteId,
+    obtenerStockObjetivoMerma,
+    productoMermaModal
+  ]);
 
   const optimizarCloudinary = (url, transformacion) => {
     const value = String(url || '');
@@ -804,6 +929,12 @@ export default function Productos() {
                     {detalleAbierto === prod._id ? 'Ocultar detalle' : 'Ver detalle'}
                   </Button>
                   <Stack direction="row" spacing={0.5}>
+                    <Button size="small" variant="outlined" onClick={() => handleAbrirMerma(prod)}>
+                      Merma
+                    </Button>
+                    <Button size="small" onClick={() => handleAbrirHistorialMermas(prod)}>
+                      Ver mermas
+                    </Button>
                     <IconButton size="small" color="primary" onClick={() => handleEditarClick(prod)}>
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -974,6 +1105,21 @@ export default function Productos() {
                     </TableCell>
 
                     <TableCell align="right">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        sx={{ mr: 1 }}
+                        onClick={() => handleAbrirMerma(prod)}
+                      >
+                        Merma
+                      </Button>
+                      <Button
+                        size="small"
+                        sx={{ mr: 1 }}
+                        onClick={() => handleAbrirHistorialMermas(prod)}
+                      >
+                        Ver mermas
+                      </Button>
                       <IconButton
                         color="primary"
                         onClick={() => handleEditarClick(prod)}
@@ -1338,6 +1484,142 @@ export default function Productos() {
         onActualizado={cargarProductosYCategorias}
       />
 
+      <Dialog
+        open={Boolean(productoMermaModal)}
+        onClose={handleCerrarMerma}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>
+          Registrar merma
+          {productoMermaModal ? ` - ${productoMermaModal.nombre}` : ''}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 0.5 }}>
+            <Box>
+              <Typography variant="body2" color="text.secondary">
+                Producto
+              </Typography>
+              <Typography fontWeight={700}>{productoMermaModal?.nombre || '-'}</Typography>
+            </Box>
+
+            {tieneVariantes(productoMermaModal) && (
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Variante"
+                value={mermaVarianteId}
+                onChange={(e) => setMermaVarianteId(e.target.value)}
+              >
+                {(productoMermaModal?.variantes || []).map((vari) => (
+                  <MenuItem key={vari._id || vari.nombre} value={String(vari._id || '')}>
+                    {vari.nombre}
+                    {` · Stock ${Number(vari.stock) || 0}`}
+                    {[vari.color, vari.talla].filter(Boolean).length > 0
+                      ? ` · ${[vari.color, vari.talla].filter(Boolean).join(' / ')}`
+                      : ''}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
+            <TextField
+              fullWidth
+              size="small"
+              type="number"
+              label="Cantidad a mermar"
+              value={mermaCantidad}
+              onChange={(e) => setMermaCantidad(e.target.value)}
+              inputProps={{ min: 1, step: 1 }}
+              helperText={`Stock disponible: ${obtenerStockObjetivoMerma(productoMermaModal, mermaVarianteId)}`}
+            />
+
+            <TextField
+              fullWidth
+              size="small"
+              label="Nota (opcional)"
+              value={mermaNota}
+              onChange={(e) => setMermaNota(e.target.value)}
+              multiline
+              minRows={2}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCerrarMerma} disabled={guardandoMerma}>
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleRegistrarMerma}
+            disabled={guardandoMerma}
+          >
+            {guardandoMerma ? 'Guardando...' : 'Registrar merma'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(productoMermasHistorial)}
+        onClose={handleCerrarHistorialMermas}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          Historial de mermas
+          {productoMermasHistorial ? ` - ${productoMermasHistorial.nombre}` : ''}
+        </DialogTitle>
+        <DialogContent dividers>
+          {cargandoMermas ? (
+            <Stack spacing={1}>
+              <Skeleton variant="rounded" height={44} />
+              <Skeleton variant="rounded" height={44} />
+              <Skeleton variant="rounded" height={44} />
+            </Stack>
+          ) : mermasHistorial.length === 0 ? (
+            <Typography color="text.secondary">
+              Este producto no registra mermas todavia.
+            </Typography>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Fecha</TableCell>
+                  <TableCell>Variante</TableCell>
+                  <TableCell align="right">Cantidad</TableCell>
+                  <TableCell align="right">Antes</TableCell>
+                  <TableCell align="right">Despues</TableCell>
+                  <TableCell>Nota</TableCell>
+                  <TableCell>Usuario</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {mermasHistorial.map((item) => (
+                  <TableRow key={item._id}>
+                    <TableCell>
+                      {item.creado_en
+                        ? new Date(item.creado_en).toLocaleString('es-CL')
+                        : '-'}
+                    </TableCell>
+                    <TableCell>{item.varianteNombre || 'Producto general'}</TableCell>
+                    <TableCell align="right">{Number(item.cantidad) || 0}</TableCell>
+                    <TableCell align="right">{Number(item.stock_antes) || 0}</TableCell>
+                    <TableCell align="right">{Number(item.stock_despues) || 0}</TableCell>
+                    <TableCell>{item.nota || '-'}</TableCell>
+                    <TableCell>{item.usuario?.nombre || item.usuario?.email || '-'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCerrarHistorialMermas}>Cerrar</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Modal stock por variante */}
       <Dialog
         open={Boolean(productoStockModal)}
@@ -1452,7 +1734,7 @@ export default function Productos() {
         onClose={handleCerrarMensaje}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert onClose={handleCerrarMensaje} severity="success" sx={{ width: '100%' }}>
+        <Alert onClose={handleCerrarMensaje} severity={mensajeTipo} sx={{ width: '100%' }}>
           {mensaje}
         </Alert>
       </Snackbar>

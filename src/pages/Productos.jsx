@@ -27,13 +27,17 @@ import {
   List,
   ListItem,
   ListItemText,
-  MenuItem
+  MenuItem,
+  Tooltip
 } from '@mui/material';
 
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 
 import {
   obtenerProductos,
@@ -46,7 +50,7 @@ import {
   usarProductoBaseEnLocal,
   obtenerLocales,
   registrarMermaProducto,
-  obtenerMermasProducto,
+  obtenerMermasProductos,
   FILES_BASE,
 } from '../services/api';
 
@@ -149,7 +153,7 @@ export default function Productos() {
   const [detalleAbierto, setDetalleAbierto] = useState(null);
   const [productoStockModal, setProductoStockModal] = useState(null);
   const [productoMermaModal, setProductoMermaModal] = useState(null);
-  const [productoMermasHistorial, setProductoMermasHistorial] = useState(null);
+  const [openMermasHistorial, setOpenMermasHistorial] = useState(false);
   const [openCrear, setOpenCrear] = useState(false);
   const [openBase, setOpenBase] = useState(false);
   const [openBaseCreate, setOpenBaseCreate] = useState(false);
@@ -185,6 +189,9 @@ export default function Productos() {
   const [guardandoMerma, setGuardandoMerma] = useState(false);
   const [mermasHistorial, setMermasHistorial] = useState([]);
   const [cargandoMermas, setCargandoMermas] = useState(false);
+  const [busquedaMermas, setBusquedaMermas] = useState('');
+  const [fechaMermasDesde, setFechaMermasDesde] = useState('');
+  const [fechaMermasHasta, setFechaMermasHasta] = useState('');
 
   const [busqueda, setBusqueda] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
@@ -372,27 +379,29 @@ export default function Productos() {
     setMermaVarianteId('');
   }, [guardandoMerma]);
 
-  const handleAbrirHistorialMermas = useCallback(async (producto) => {
-    if (!producto?._id) return;
-    setProductoMermasHistorial(producto);
+  const handleAbrirHistorialMermas = useCallback(async () => {
+    setOpenMermasHistorial(true);
     setMermasHistorial([]);
     setCargandoMermas(true);
     try {
-      const res = await obtenerMermasProducto(producto._id);
+      const res = await obtenerMermasProductos();
       setMermasHistorial(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       setMensajeTipo('error');
       setMensaje(err?.response?.data?.error || 'No se pudo cargar el historial de mermas.');
-      setProductoMermasHistorial(null);
+      setOpenMermasHistorial(false);
     } finally {
       setCargandoMermas(false);
     }
   }, []);
 
   const handleCerrarHistorialMermas = useCallback(() => {
-    setProductoMermasHistorial(null);
+    setOpenMermasHistorial(false);
     setMermasHistorial([]);
     setCargandoMermas(false);
+    setBusquedaMermas('');
+    setFechaMermasDesde('');
+    setFechaMermasHasta('');
   }, []);
 
   const pushNotificacionGuardado = useCallback((texto, severity = 'success') => {
@@ -728,6 +737,36 @@ export default function Productos() {
     return stockBodegaLookup.byAttributes.get(`${nombre}::::`) || 0;
   }, [stockBodegaLookup]);
 
+  const mermasHistorialFiltradas = useMemo(() => {
+    const query = normalizarTexto(busquedaMermas);
+    return mermasHistorial.filter((item) => {
+      if (query) {
+        const texto = normalizarTexto([
+          item.productoBase?.nombre,
+          item.varianteNombre,
+          item.nota,
+          item.usuario?.nombre,
+          item.usuario?.email
+        ].filter(Boolean).join(' '));
+        if (!texto.includes(query)) return false;
+      }
+
+      if (fechaMermasDesde) {
+        const desde = new Date(`${fechaMermasDesde}T00:00:00`);
+        const fecha = item.creado_en ? new Date(item.creado_en) : null;
+        if (!fecha || fecha < desde) return false;
+      }
+
+      if (fechaMermasHasta) {
+        const hasta = new Date(`${fechaMermasHasta}T23:59:59`);
+        const fecha = item.creado_en ? new Date(item.creado_en) : null;
+        if (!fecha || fecha > hasta) return false;
+      }
+
+      return true;
+    });
+  }, [busquedaMermas, fechaMermasDesde, fechaMermasHasta, mermasHistorial]);
+
   const deferredBusqueda = useDeferredValue(busqueda);
   const busquedaNormalizada = useMemo(
     () => deferredBusqueda.toLowerCase().trim(),
@@ -793,6 +832,9 @@ export default function Productos() {
           Gestion de Productos
         </Typography>
         <Stack direction="row" spacing={1}>
+          <Button variant="outlined" onClick={handleAbrirHistorialMermas}>
+            Historial de mermas
+          </Button>
           <Button variant="outlined" onClick={handleAbrirBases}>
             Usar del catalogo
           </Button>
@@ -931,9 +973,6 @@ export default function Productos() {
                   <Stack direction="row" spacing={0.5}>
                     <Button size="small" variant="outlined" onClick={() => handleAbrirMerma(prod)}>
                       Merma
-                    </Button>
-                    <Button size="small" onClick={() => handleAbrirHistorialMermas(prod)}>
-                      Ver mermas
                     </Button>
                     <IconButton size="small" color="primary" onClick={() => handleEditarClick(prod)}>
                       <EditIcon fontSize="small" />
@@ -1105,43 +1144,41 @@ export default function Productos() {
                     </TableCell>
 
                     <TableCell align="right">
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        sx={{ mr: 1 }}
-                        onClick={() => handleAbrirMerma(prod)}
-                      >
-                        Merma
-                      </Button>
-                      <Button
-                        size="small"
-                        sx={{ mr: 1 }}
-                        onClick={() => handleAbrirHistorialMermas(prod)}
-                      >
-                        Ver mermas
-                      </Button>
-                      <IconButton
-                        color="primary"
-                        onClick={() => handleEditarClick(prod)}
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      {esSuperadmin && (
-                        <Button
-                          size="small"
-                          sx={{ ml: 1 }}
-                          onClick={() => handleUsarEnOtroLocal(prod)}
+                      <Tooltip title="Registrar merma">
+                        <IconButton
+                          color="warning"
+                          onClick={() => handleAbrirMerma(prod)}
                         >
-                          Usar en otro local
-                        </Button>
+                          <RemoveCircleOutlineIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Editar producto">
+                        <IconButton
+                          color="primary"
+                          onClick={() => handleEditarClick(prod)}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      {esSuperadmin && (
+                        <Tooltip title="Usar en otro local">
+                          <IconButton
+                            color="default"
+                            onClick={() => handleUsarEnOtroLocal(prod)}
+                          >
+                            <StorefrontOutlinedIcon />
+                          </IconButton>
+                        </Tooltip>
                       )}
                       {puedeEliminar && (
-                        <IconButton
-                          color="error"
-                          onClick={() => handleEliminarClick(prod)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
+                        <Tooltip title="Eliminar producto">
+                          <IconButton
+                            color="error"
+                            onClick={() => handleEliminarClick(prod)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
                       )}
                     </TableCell>
                   </TableRow>
@@ -1562,31 +1599,56 @@ export default function Productos() {
       </Dialog>
 
       <Dialog
-        open={Boolean(productoMermasHistorial)}
+        open={openMermasHistorial}
         onClose={handleCerrarHistorialMermas}
         fullWidth
         maxWidth="md"
       >
-        <DialogTitle>
-          Historial de mermas
-          {productoMermasHistorial ? ` - ${productoMermasHistorial.nombre}` : ''}
-        </DialogTitle>
+        <DialogTitle>Historial de mermas</DialogTitle>
         <DialogContent dividers>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+            <TextField
+              size="small"
+              label="Buscar"
+              placeholder="Producto, variante, nota o usuario"
+              value={busquedaMermas}
+              onChange={(e) => setBusquedaMermas(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              size="small"
+              label="Desde"
+              type="date"
+              value={fechaMermasDesde}
+              onChange={(e) => setFechaMermasDesde(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              size="small"
+              label="Hasta"
+              type="date"
+              value={fechaMermasHasta}
+              onChange={(e) => setFechaMermasHasta(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Stack>
+
           {cargandoMermas ? (
             <Stack spacing={1}>
               <Skeleton variant="rounded" height={44} />
               <Skeleton variant="rounded" height={44} />
               <Skeleton variant="rounded" height={44} />
             </Stack>
-          ) : mermasHistorial.length === 0 ? (
+          ) : mermasHistorialFiltradas.length === 0 ? (
             <Typography color="text.secondary">
-              Este producto no registra mermas todavia.
+              No hay mermas que coincidan con los filtros.
             </Typography>
           ) : (
             <Table size="small">
               <TableHead>
                 <TableRow>
                   <TableCell>Fecha</TableCell>
+                  <TableCell>Producto</TableCell>
                   <TableCell>Variante</TableCell>
                   <TableCell align="right">Cantidad</TableCell>
                   <TableCell align="right">Antes</TableCell>
@@ -1596,13 +1658,14 @@ export default function Productos() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {mermasHistorial.map((item) => (
+                {mermasHistorialFiltradas.map((item) => (
                   <TableRow key={item._id}>
                     <TableCell>
                       {item.creado_en
                         ? new Date(item.creado_en).toLocaleString('es-CL')
                         : '-'}
                     </TableCell>
+                    <TableCell>{item.productoBase?.nombre || '-'}</TableCell>
                     <TableCell>{item.varianteNombre || 'Producto general'}</TableCell>
                     <TableCell align="right">{Number(item.cantidad) || 0}</TableCell>
                     <TableCell align="right">{Number(item.stock_antes) || 0}</TableCell>

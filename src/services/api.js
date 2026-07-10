@@ -165,6 +165,7 @@ export const editarProducto = (id, data) =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 export const registrarMermaProducto = (id, data) => API.post(`/productos/${id}/mermas`, data);
+export const obtenerMermasProductos = () => API.get('/productos/mermas');
 export const obtenerMermasProducto = (id) => API.get(`/productos/${id}/mermas`);
 
 // ─────────────────────────────────────────────

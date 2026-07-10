@@ -607,12 +607,9 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
                     sx={{
                       position: 'relative',
                       overflow: 'hidden',
-                      border: '1px solid',
+                      borderBottom: '1px solid',
                       borderColor: theme.palette.divider,
-                      borderRadius: 2,
-                      mb: 1,
-                      backgroundColor: theme.palette.background.paper,
-                      boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                      mb: 0.35,
                       '&:hover .cart-row-delete': {
                         opacity: 1,
                         pointerEvents: 'auto'
@@ -652,9 +649,9 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
                       onPointerCancel={() => setDragState(null)}
                       sx={{
                         position: 'relative',
-                        px: 1.1,
+                        px: 0.25,
                         py: 1.15,
-                        backgroundColor: theme.palette.background.paper,
+                        backgroundColor: 'transparent',
                         transform: `translateX(${dragOffset}px)`,
                         transition: dragState?.id === itemId ? 'none' : 'transform 0.16s ease',
                         touchAction: 'pan-y'

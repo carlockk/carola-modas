@@ -130,6 +130,9 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
   const [descuentos, setDescuentos] = useState([]);
   const [ultimaVenta, setUltimaVenta] = useState(null);
   const [configRecibo, setConfigRecibo] = useState(null);
+  const [observacionesAbiertas, setObservacionesAbiertas] = useState({});
+  const [descuentoVentaAbierto, setDescuentoVentaAbierto] = useState(false);
+  const [guardarTicketAbierto, setGuardarTicketAbierto] = useState(false);
   const ventaImpresaRef = useRef(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -189,6 +192,13 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     };
   };
 
+  const toggleObservacion = (itemId) => {
+    setObservacionesAbiertas((prev) => ({
+      ...prev,
+      [itemId]: !prev[itemId]
+    }));
+  };
+
   useEffect(() => {
     const cargarConfigRecibo = async () => {
       try {
@@ -221,6 +231,10 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
     }
     setManualVentaTipo('fijo');
     setManualVentaValor('');
+  }, [descuentoVenta]);
+
+  useEffect(() => {
+    if (descuentoVenta) setDescuentoVentaAbierto(true);
   }, [descuentoVenta]);
 
   useEffect(() => {
@@ -585,6 +599,8 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
                   typeof item.stockDisponible === 'number' && item.cantidad >= item.stockDisponible;
                 const itemId = item.idCarrito || item._id;
                 const dragOffset = getDragOffset(itemId);
+                const observacionAbierta = Boolean(observacionesAbiertas[itemId]);
+                const tieneObservacion = Boolean(item.observacion?.trim());
                 return (
                   <Box
                     key={itemId}
@@ -738,21 +754,59 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
                         </Typography>
                       )}
 
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="Observación"
-                        variant="outlined"
-                        value={item.observacion}
-                        onChange={e => actualizarObservacion(item.idCarrito, e.target.value)}
-                        sx={{
-                          mt: 0.65,
-                          '& .MuiInputBase-input': {
-                            py: 0.65,
-                            fontSize: '0.82rem'
-                          }
-                        }}
-                      />
+                      <Box sx={{ mt: 0.65 }}>
+                        <Button
+                          size="small"
+                          variant="text"
+                          onClick={() => toggleObservacion(itemId)}
+                          sx={{
+                            minWidth: 0,
+                            px: 0,
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            alignSelf: 'flex-start'
+                          }}
+                        >
+                          {observacionAbierta
+                            ? 'Ocultar observacion'
+                            : (tieneObservacion ? 'Ver/editar observacion' : 'Agregar observacion')}
+                        </Button>
+
+                        {!observacionAbierta && tieneObservacion && (
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{
+                              display: 'block',
+                              mt: 0.25,
+                              lineHeight: 1.25,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Obs: {item.observacion}
+                          </Typography>
+                        )}
+
+                        {observacionAbierta && (
+                          <TextField
+                            fullWidth
+                            size="small"
+                            placeholder="Observacion"
+                            variant="outlined"
+                            value={item.observacion}
+                            onChange={e => actualizarObservacion(item.idCarrito, e.target.value)}
+                            sx={{
+                              mt: 0.5,
+                              '& .MuiInputBase-input': {
+                                py: 0.65,
+                                fontSize: '0.82rem'
+                              }
+                            }}
+                          />
+                        )}
+                      </Box>
                     </Box>
                   </Box>
                 );
@@ -764,10 +818,10 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
                 flexShrink: 0,
                 position: 'sticky',
                 bottom: 0,
-                pt: 2,
+                pt: 1.25,
                 mt: 1,
                 px: 1.25,
-                pb: 1,
+                pb: 0.85,
                 borderTop: '1px solid',
                 borderColor: theme.palette.divider,
                 bgcolor: theme.palette.background.default,
@@ -787,106 +841,183 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
                 }
               }}
             >
-              <TextField
-                select fullWidth size="small" label="Descuento para toda la venta"
-                value={descuentoVenta && !descuentoVenta.descuentoId ? '__manual__' : (descuentoVenta?.descuentoId || '')}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (!value) {
-                    limpiarDescuentoVenta();
-                    return;
-                  }
-                  const descuentoSeleccionado =
-                    descuentos.find((item) => String(item._id) === String(value)) || null;
-                  actualizarDescuentoVenta(descuentoSeleccionado);
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-end',
+                  gap: 1,
+                  mb: 1.25
                 }}
               >
-                <MenuItem value="">Sin descuento general</MenuItem>
-                {descuentoVenta && !descuentoVenta.descuentoId && (
-                  <MenuItem value="__manual__" disabled>
-                    Descuento manual activo
-                  </MenuItem>
-                )}
-                {descuentos.map((descuento) => (
-                  <MenuItem key={descuento._id} value={descuento._id}>
-                    {descuento.nombre} ({descuento.tipo === 'porcentaje' ? `${descuento.valor}%` : `$${Number(descuento.valor).toLocaleString('es-CL')}`})
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
-                <TextField
-                  select
-                  size="small"
-                  label="Tipo manual"
-                  value={manualVentaTipo}
-                  onChange={(e) => setManualVentaTipo(e.target.value)}
-                  sx={{ minWidth: { sm: 140 } }}
-                >
-                  <MenuItem value="fijo">Monto fijo</MenuItem>
-                  <MenuItem value="porcentaje">Porcentaje</MenuItem>
-                </TextField>
-                <TextField
-                  size="small"
-                  type="number"
-                  label={manualVentaTipo === 'porcentaje' ? 'Porcentaje' : 'Monto'}
-                  value={manualVentaValor}
-                  onChange={(e) => setManualVentaValor(e.target.value)}
-                  inputProps={{
-                    min: 0,
-                    max: manualVentaTipo === 'porcentaje' ? 100 : undefined,
-                    step: manualVentaTipo === 'porcentaje' ? 1 : 100
-                  }}
-                  fullWidth
-                />
-                <Button variant="outlined" onClick={aplicarDescuentoManualVenta}>
-                  Aplicar manual
-                </Button>
-              </Stack>
-              <Box sx={{ mt: 2, textAlign: 'right' }}>
-                <Typography variant="body2">Subtotal: ${subtotal.toLocaleString('es-CL')}</Typography>
-                {descuentoTotal > 0 && (
-                  <Typography variant="body2" color="success.main">Descuentos: -${descuentoTotal.toLocaleString('es-CL')}</Typography>
-                )}
-                <Typography variant="h6">Total: <strong>${total.toLocaleString('es-CL')}</strong></Typography>
+                <Box sx={{ minWidth: 0 }}>
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={() => setDescuentoVentaAbierto((prev) => !prev)}
+                    sx={{ minWidth: 0, px: 0, textTransform: 'none', fontWeight: 700 }}
+                  >
+                    {descuentoVentaAbierto ? 'Ocultar descuento' : 'Agregar descuento'}
+                  </Button>
+                  {descuentoVenta && (
+                    <Typography variant="caption" color="success.main" sx={{ display: 'block', lineHeight: 1.2 }}>
+                      {descuentoVenta.nombre || 'Descuento manual'} aplicado
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="body2" sx={{ lineHeight: 1.15 }}>
+                    Subtotal: ${subtotal.toLocaleString('es-CL')}
+                  </Typography>
+                  {descuentoTotal > 0 && (
+                    <Typography variant="caption" color="success.main" sx={{ display: 'block', lineHeight: 1.15 }}>
+                      Desc.: -${descuentoTotal.toLocaleString('es-CL')}
+                    </Typography>
+                  )}
+                  <Typography variant="h5" sx={{ fontWeight: 800, lineHeight: 1.05, mt: 0.35 }}>
+                    Total: ${total.toLocaleString('es-CL')}
+                  </Typography>
+                </Box>
               </Box>
 
+              {descuentoVentaAbierto && (
+                <Box
+                  sx={{
+                    mb: 1.25,
+                    p: 1,
+                    border: '1px solid',
+                    borderColor: theme.palette.divider,
+                    borderRadius: 2,
+                    bgcolor: theme.palette.background.paper
+                  }}
+                >
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    label="Descuento para toda la venta"
+                    value={descuentoVenta && !descuentoVenta.descuentoId ? '__manual__' : (descuentoVenta?.descuentoId || '')}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (!value) {
+                        limpiarDescuentoVenta();
+                        return;
+                      }
+                      const descuentoSeleccionado =
+                        descuentos.find((item) => String(item._id) === String(value)) || null;
+                      actualizarDescuentoVenta(descuentoSeleccionado);
+                    }}
+                  >
+                    <MenuItem value="">Sin descuento general</MenuItem>
+                    {descuentoVenta && !descuentoVenta.descuentoId && (
+                      <MenuItem value="__manual__" disabled>
+                        Descuento manual activo
+                      </MenuItem>
+                    )}
+                    {descuentos.map((descuento) => (
+                      <MenuItem key={descuento._id} value={descuento._id}>
+                        {descuento.nombre} ({descuento.tipo === 'porcentaje' ? `${descuento.valor}%` : `$${Number(descuento.valor).toLocaleString('es-CL')}`})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
+                    <TextField
+                      select
+                      size="small"
+                      label="Tipo manual"
+                      value={manualVentaTipo}
+                      onChange={(e) => setManualVentaTipo(e.target.value)}
+                      sx={{ minWidth: { sm: 140 } }}
+                    >
+                      <MenuItem value="fijo">Monto fijo</MenuItem>
+                      <MenuItem value="porcentaje">Porcentaje</MenuItem>
+                    </TextField>
+                    <TextField
+                      size="small"
+                      type="number"
+                      label={manualVentaTipo === 'porcentaje' ? 'Porcentaje' : 'Monto'}
+                      value={manualVentaValor}
+                      onChange={(e) => setManualVentaValor(e.target.value)}
+                      inputProps={{
+                        min: 0,
+                        max: manualVentaTipo === 'porcentaje' ? 100 : undefined,
+                        step: manualVentaTipo === 'porcentaje' ? 1 : 100
+                      }}
+                      fullWidth
+                    />
+                    <Button variant="outlined" onClick={aplicarDescuentoManualVenta}>
+                      Aplicar
+                    </Button>
+                  </Stack>
+                </Box>
+              )}
+
               {cajaVerificada && !cajaDisponible && (
-                <Alert severity="warning" sx={{ mt: 2 }}>
+                <Alert severity="warning" sx={{ mb: 1.25 }}>
                   No puedes iniciar el POS si no abres la caja.
                 </Alert>
               )}
 
-              <Stack spacing={1} mt={2}>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  fullWidth
-                  onClick={() => setModalOpen(true)}
-                  disabled={loading || !cajaDisponible}
-                  sx={{ py: 1.2, fontWeight: 600 }}
-                >
-                  {cajaDisponible ? (loading ? 'Procesando...' : '💳 Finalizar Venta') : 'Abre la caja para vender'}
-                </Button>
-                <Button variant="text" color="error" onClick={vaciarCarrito}>
-                  🗑 Vaciar Carrito
-                </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                fullWidth
+                onClick={() => setModalOpen(true)}
+                disabled={loading || !cajaDisponible}
+                sx={{ py: 1, fontWeight: 700, borderRadius: 2.5 }}
+              >
+                {cajaDisponible ? (loading ? 'Procesando...' : '💳 Finalizar Venta') : 'Abre la caja para vender'}
+              </Button>
 
-                <TextField
-                  size="small"
-                  fullWidth
-                  variant="outlined"
-                  label="Nombre del ticket"
-                  value={ticketNombre}
-                  onChange={(e) => setTicketNombre(e.target.value)}
-                />
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 0.75 }}>
                 <Button
-                  variant="outlined"
-                  fullWidth
-                  onClick={handleGuardarTicket}
+                  size="small"
+                  variant="text"
+                  onClick={() => setGuardarTicketAbierto((prev) => !prev)}
+                  sx={{ minWidth: 0, px: 0, textTransform: 'none', fontWeight: 700 }}
                 >
-                  📝 Guardar Ticket
+                  {guardarTicketAbierto ? 'Ocultar ticket' : 'Guardar como ticket'}
+                </Button>
+                <Button
+                  size="small"
+                  variant="text"
+                  color="error"
+                  onClick={vaciarCarrito}
+                  sx={{ minWidth: 0, px: 0, textTransform: 'none', fontWeight: 700 }}
+                >
+                  Vaciar carrito
                 </Button>
               </Stack>
+
+              {guardarTicketAbierto && (
+                <Box
+                  sx={{
+                    mt: 1,
+                    p: 1,
+                    border: '1px solid',
+                    borderColor: theme.palette.divider,
+                    borderRadius: 2,
+                    bgcolor: theme.palette.background.paper
+                  }}
+                >
+                  <TextField
+                    size="small"
+                    fullWidth
+                    variant="outlined"
+                    label="Nombre del ticket"
+                    value={ticketNombre}
+                    onChange={(e) => setTicketNombre(e.target.value)}
+                  />
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    onClick={handleGuardarTicket}
+                    sx={{ mt: 1 }}
+                  >
+                    📝 Guardar Ticket
+                  </Button>
+                </Box>
+              )}
             </Box>
           </Box>
         )}

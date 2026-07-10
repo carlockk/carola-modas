@@ -651,7 +651,7 @@ export default function CarritoDrawer({ open, onClose, onVentaCompletada, deskto
                         position: 'relative',
                         px: 0.25,
                         py: 1.15,
-                        backgroundColor: 'transparent',
+                        backgroundColor: theme.palette.background.default,
                         transform: `translateX(${dragOffset}px)`,
                         transition: dragState?.id === itemId ? 'none' : 'transform 0.16s ease',
                         touchAction: 'pan-y'

@@ -11,7 +11,6 @@ import {
   Drawer,
   Snackbar,
   Tooltip,
-  Fab,
   Badge,
   Skeleton
 } from '@mui/material';
@@ -743,6 +742,13 @@ export default function POS() {
 
         <Stack direction="row" spacing={1}>
           <Button
+            variant="outlined"
+            onClick={() => setDrawerOpen(true)}
+            sx={{ textTransform: 'none' }}
+          >
+            Ordenar categorias
+          </Button>
+          <Button
             variant="contained"
             color="success"
             onClick={() => setOpenCrear(true)}
@@ -1088,7 +1094,6 @@ export default function POS() {
 
       <Button
         variant="contained"
-        startIcon={<ShoppingCartIcon />}
         onClick={() => setOpenCarrito((prev) => !prev)}
         sx={{
           position: 'fixed',
@@ -1097,45 +1102,28 @@ export default function POS() {
             xs: 16,
             sm: openCarrito ? DESKTOP_CART_WIDTH + 16 : 16
           },
-          bottom: 20,
+          bottom: 16,
           zIndex: 1500,
-          borderRadius: 999,
-          px: 2,
-          minHeight: 44,
-          fontWeight: 800,
+          borderRadius: 14,
+          px: 1.6,
+          minHeight: 38,
+          fontSize: '0.82rem',
+          fontWeight: 700,
           textTransform: 'none',
-          boxShadow: '0 12px 28px rgba(15,23,42,0.28)'
+          color: '#111827',
+          background: 'rgba(255,255,255,0.58)',
+          border: '1px solid rgba(255,255,255,0.42)',
+          backdropFilter: 'blur(12px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(12px) saturate(140%)',
+          boxShadow: '0 10px 24px rgba(15,23,42,0.16)',
+          '&:hover': {
+            background: 'rgba(255,255,255,0.68)'
+          }
         }}
       >
         {openCarrito ? 'Ocultar' : 'Carrito'}
         {cantidadTotalCarrito > 0 ? ` (${cantidadTotalCarrito})` : ''}
       </Button>
-
-      <Fab
-        size="small"
-        onClick={() => setDrawerOpen(true)}
-        sx={{
-          position: 'fixed',
-          display: 'inline-flex',
-          top: { xs: 72, sm: 88 },
-          right: {
-            xs: 16,
-            sm: openCarrito ? DESKTOP_CART_WIDTH + 24 : 24
-          },
-          width: { xs: 42, sm: 44 },
-          height: { xs: 42, sm: 44 },
-          minHeight: 0,
-          zIndex: 1500,
-          bgcolor: '#111111',
-          color: '#ffffff',
-          boxShadow: '0 10px 24px rgba(0,0,0,0.22)',
-          '&:hover': {
-            bgcolor: '#000000'
-          }
-        }}
-      >
-        <SettingsIcon sx={{ fontSize: 20 }} />
-      </Fab>
 
       <Box
         sx={{

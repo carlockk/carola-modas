@@ -1111,20 +1111,30 @@ export default function POS() {
         {cantidadTotalCarrito > 0 ? ` (${cantidadTotalCarrito})` : ''}
       </Button>
 
-      {/* Botón flotante derecho */}
       <Fab
-        color="primary"
-        size="medium"
+        size="small"
         onClick={() => setDrawerOpen(true)}
         sx={{
           position: 'fixed',
-          display: { xs: 'none', sm: 'inline-flex' },
-          right: 16,
-          bottom: 90,
-          zIndex: 1500
+          display: 'inline-flex',
+          top: { xs: 72, sm: 88 },
+          right: {
+            xs: 16,
+            sm: openCarrito ? DESKTOP_CART_WIDTH + 24 : 24
+          },
+          width: { xs: 42, sm: 44 },
+          height: { xs: 42, sm: 44 },
+          minHeight: 0,
+          zIndex: 1500,
+          bgcolor: '#111111',
+          color: '#ffffff',
+          boxShadow: '0 10px 24px rgba(0,0,0,0.22)',
+          '&:hover': {
+            bgcolor: '#000000'
+          }
         }}
       >
-        <SettingsIcon />
+        <SettingsIcon sx={{ fontSize: 20 }} />
       </Fab>
 
       <Box
@@ -1167,21 +1177,6 @@ export default function POS() {
         >
           {openCarrito ? 'Ocultar carrito' : 'Carrito'}
         </Button>
-        <IconButton
-          color="primary"
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Ordenar categorias"
-          sx={{
-            width: 52,
-            height: 52,
-            borderRadius: 1,
-            border: '1px solid',
-            borderColor: theme.palette.divider,
-            flexShrink: 0
-          }}
-        >
-          <SettingsIcon />
-        </IconButton>
       </Box>
 
       {/* Drawer ordenar categorías */}

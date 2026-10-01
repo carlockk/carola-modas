@@ -260,24 +260,15 @@ export default function POS() {
     if (!Array.isArray(cats) || cats.length === 0) {
       return [...prods];
     }
-    const orden = cats.map((cat) => cat._id);
-    const ordenados = [];
-    const usados = new Set();
-
-    orden.forEach((catId) => {
-      prods
-        .filter((p) => resolverCategoriaId(p) === String(catId))
-        .forEach((p) => {
-          ordenados.push(p);
-          usados.add(p._id);
-        });
+    const grupos = new Map(cats.map((cat) => [String(cat._id), []]));
+    const restantes = [];
+    prods.forEach((prod) => {
+      const grupo = grupos.get(resolverCategoriaId(prod));
+      if (grupo) grupo.push(prod);
+      else restantes.push(prod);
     });
 
-    prods
-      .filter((p) => !usados.has(p._id))
-      .forEach((p) => ordenados.push(p));
-
-    return ordenados;
+    return [...Array.from(grupos.values()).flat(), ...restantes];
   };
 
   const cargarDatos = useCallback(async ({ background = false } = {}) => {
@@ -297,11 +288,13 @@ export default function POS() {
 
       let categoriasOrdenadas = categoriasConEtiqueta;
       if (ordenGuardado) {
+        const categoriasPorId = new Map(categoriasConEtiqueta.map((cat) => [cat._id, cat]));
+        const idsGuardados = new Set(ordenGuardado);
         const ordenadas = ordenGuardado
-          .map((id) => categoriasConEtiqueta.find((c) => c._id === id))
+          .map((id) => categoriasPorId.get(id))
           .filter(Boolean);
         const faltantes = categoriasConEtiqueta.filter(
-          (c) => !ordenGuardado.includes(c._id)
+          (c) => !idsGuardados.has(c._id)
         );
         categoriasOrdenadas = [...ordenadas, ...faltantes];
       }

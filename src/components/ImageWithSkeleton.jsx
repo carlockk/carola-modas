@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Box, Skeleton, Typography } from '@mui/material';
 
 export default function ImageWithSkeleton({
@@ -10,23 +10,10 @@ export default function ImageWithSkeleton({
   fallback = null
 }) {
   const [loaded, setLoaded] = useState(false);
+  const imageRef = useRef(null);
 
   useEffect(() => {
-    if (!src) {
-      setLoaded(false);
-      return;
-    }
-
-    setLoaded(false);
-
-    const image = new window.Image();
-    image.onload = () => setLoaded(true);
-    image.onerror = () => setLoaded(true);
-    image.src = src;
-
-    if (image.complete) {
-      setLoaded(true);
-    }
+    setLoaded(Boolean(src && imageRef.current?.complete));
   }, [src]);
 
   return (
@@ -54,10 +41,13 @@ export default function ImageWithSkeleton({
           )}
           <Box
             component="img"
+            ref={imageRef}
             src={src}
             alt={alt}
             loading="lazy"
             decoding="async"
+            onLoad={() => setLoaded(true)}
+            onError={() => setLoaded(true)}
             sx={{
               width: '100%',
               height: '100%',

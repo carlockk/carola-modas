@@ -297,25 +297,15 @@ export default function Productos() {
       return [...prods];
     }
 
-    const ordenIds = cats.map((c) => c._id);
-    const ordenados = [];
-    const usados = new Set();
-
-    ordenIds.forEach((catId) => {
-      prods
-        .filter((p) => p.categoria?._id === catId)
-        .forEach((p) => {
-          ordenados.push(p);
-          usados.add(p._id);
-        });
+    const grupos = new Map(cats.map((cat) => [cat._id, []]));
+    const restantes = [];
+    prods.forEach((prod) => {
+      const grupo = grupos.get(prod.categoria?._id);
+      if (grupo) grupo.push(prod);
+      else restantes.push(prod);
     });
 
-    // Agrega productos sin categoria o con categoria no encontrada
-    prods
-      .filter((p) => !usados.has(p._id))
-      .forEach((p) => ordenados.push(p));
-
-    return ordenados;
+    return [...Array.from(grupos.values()).flat(), ...restantes];
   };
 
   const handleEliminarClick = (producto) => {

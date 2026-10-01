@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box, Typography, TextField, List, ListItemButton, Divider, Paper, Stack,
-  Button, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Alert
+  Button, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Alert, CircularProgress
 } from '@mui/material';
-import { anularVenta, obtenerVentas, registrarDevolucion } from '../services/api';
+import { anularVenta, obtenerDetalleVenta, obtenerVentas, registrarDevolucion } from '../services/api';
 import VistaTicket from '../components/VistaTicket';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,8 +11,21 @@ export default function Historial() {
   const { selectedLocal, usuario } = useAuth();
   const localId = selectedLocal?._id;
   const [ventas, setVentas] = useState([]);
-  const [filtradas, setFiltradas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaAplicada, setBusquedaAplicada] = useState('');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [siguiente, setSiguiente] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [error, setError] = useState('');
+  const [errorDetalle, setErrorDetalle] = useState('');
+  const consultaRef = useRef(0);
+  const detalleRef = useRef(0);
+  const listaRef = useRef(null);
+  const loadMoreRef = useRef(null);
+  const cargaEnCursoRef = useRef(false);
   const [ventaSeleccionada, setVentaSeleccionada] = useState(null);
   const [dialogoDevolucion, setDialogoDevolucion] = useState(false);
   const [devolucion, setDevolucion] = useState({ monto: '', motivo: '', tipo_pago: 'Efectivo' });
@@ -26,53 +39,135 @@ export default function Historial() {
     .reduce((sum, item) => sum + (Number(item.monto) || 0), 0);
   const saldoDisponible = Math.max(0, Number(ventaSeleccionada?.total || 0) - totalDevuelto);
 
-  const cargar = useCallback(async () => {
+  useEffect(() => {
+    const timer = setTimeout(() => setBusquedaAplicada(busqueda.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [busqueda]);
+
+  useEffect(() => {
+    const consulta = ++consultaRef.current;
+    const secuencia = consultaRef;
+    ++detalleRef.current;
+    setVentas([]);
+    setSiguiente(null);
+    setVentaSeleccionada(null);
+    setCargandoDetalle(false);
+    setCargandoMas(false);
+    cargaEnCursoRef.current = false;
+    setErrorDetalle('');
+    setError('');
+    setCargando(true);
     if (!localId) {
-      setVentas([]);
-      setFiltradas([]);
-      setVentaSeleccionada(null);
-      return;
+      setCargando(false);
+      return () => { ++secuencia.current; };
+    }
+    const parametros = { limite: 50, buscar: busquedaAplicada || undefined };
+    if (desde) parametros.desde = new Date(`${desde}T00:00:00`).toISOString();
+    if (hasta) {
+      const fin = new Date(`${hasta}T00:00:00`);
+      fin.setDate(fin.getDate() + 1);
+      parametros.hasta = fin.toISOString();
+    }
+    obtenerVentas(parametros)
+      .then(({ data }) => {
+        if (consulta !== consultaRef.current) return;
+        setVentas(data.items);
+        setSiguiente(data.siguiente);
+      })
+      .catch((err) => {
+        if (consulta === consultaRef.current) setError(err?.response?.data?.error || 'No se pudo cargar el historial');
+      })
+      .finally(() => {
+        if (consulta === consultaRef.current) setCargando(false);
+      });
+    return () => { ++secuencia.current; };
+  }, [localId, busquedaAplicada, desde, hasta]);
+
+  const cargarMas = useCallback(async () => {
+    if (!siguiente || cargaEnCursoRef.current) return;
+    cargaEnCursoRef.current = true;
+    const consulta = consultaRef.current;
+    setCargandoMas(true);
+    setError('');
+    const parametros = {
+      limite: 50, buscar: busquedaAplicada || undefined,
+      cursorFecha: siguiente.fecha, cursorId: siguiente.id
+    };
+    if (desde) parametros.desde = new Date(`${desde}T00:00:00`).toISOString();
+    if (hasta) {
+      const fin = new Date(`${hasta}T00:00:00`);
+      fin.setDate(fin.getDate() + 1);
+      parametros.hasta = fin.toISOString();
     }
     try {
-      const res = await obtenerVentas({});
-      setVentas(res.data);
-      setFiltradas(res.data);
-    } catch {
-      alert('❌ Error al cargar historial');
+      const { data } = await obtenerVentas(parametros);
+      if (consulta !== consultaRef.current) return;
+      setVentas((actuales) => [...actuales, ...data.items]);
+      setSiguiente(data.siguiente);
+    } catch (err) {
+      if (consulta === consultaRef.current) setError(err?.response?.data?.error || 'No se pudieron cargar más tickets');
+    } finally {
+      if (consulta === consultaRef.current) {
+        cargaEnCursoRef.current = false;
+        setCargandoMas(false);
+      }
     }
-  }, [localId]);
+  }, [siguiente, busquedaAplicada, desde, hasta]);
 
   useEffect(() => {
-    cargar();
-  }, [cargar]);
+    const sentinel = loadMoreRef.current;
+    const lista = listaRef.current;
+    if (!sentinel || !lista || !siguiente || cargando || cargandoMas || error ||
+        typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        observer.disconnect();
+        cargarMas();
+      }
+    }, { root: lista, rootMargin: '400px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [siguiente, cargando, cargandoMas, error, cargarMas]);
 
-  useEffect(() => {
-    const b = busqueda.toLowerCase();
-    const resultado = ventas.filter(v =>
-      String(v.numero_pedido).includes(b) ||
-      v.productos.some(p =>
-        p.nombre.toLowerCase().includes(b) ||
-        (p.varianteNombre || '').toLowerCase().includes(b)
-      )
-    );
-    setFiltradas(resultado);
-  }, [busqueda, ventas]);
+  const seleccionarVenta = async (id) => {
+    const solicitud = ++detalleRef.current;
+    setVentaSeleccionada(null);
+    setErrorDetalle('');
+    setCargandoDetalle(true);
+    try {
+      const { data } = await obtenerDetalleVenta(id);
+      if (solicitud === detalleRef.current) setVentaSeleccionada(data);
+    } catch (err) {
+      if (solicitud === detalleRef.current) setErrorDetalle(err?.response?.data?.error || 'No se pudo cargar el ticket');
+    } finally {
+      if (solicitud === detalleRef.current) setCargandoDetalle(false);
+    }
+  };
+
+  const actualizarVenta = async (id) => {
+    const solicitud = detalleRef.current;
+    const { data } = await obtenerDetalleVenta(id);
+    if (solicitud === detalleRef.current) setVentaSeleccionada(data);
+    setVentas((actuales) => actuales.map((venta) => venta._id === id
+      ? { ...venta, estado: data.estado }
+      : venta));
+  };
 
   const guardarDevolucion = async () => {
     const monto = Math.round(Number(devolucion.monto));
     if (!Number.isFinite(monto) || monto <= 0) return alert('Ingresa un monto valido');
     if (!devolucion.motivo.trim()) return alert('Ingresa el motivo de la devolucion');
     setGuardando(true);
+    let registrada = false;
     try {
       await registrarDevolucion(ventaSeleccionada._id, { ...devolucion, monto });
+      registrada = true;
       setDialogoDevolucion(false);
       setDevolucion({ monto: '', motivo: '', tipo_pago: 'Efectivo' });
-      const res = await obtenerVentas({});
-      setVentas(res.data);
-      setFiltradas(res.data);
-      setVentaSeleccionada(res.data.find((venta) => venta._id === ventaSeleccionada._id) || null);
+      await actualizarVenta(ventaSeleccionada._id);
     } catch (err) {
-      alert(err?.response?.data?.error || 'No se pudo registrar la devolucion');
+      alert(registrada ? 'Devolución registrada, pero no se pudo actualizar el ticket. Vuelve a abrirlo.' :
+        (err?.response?.data?.error || 'No se pudo registrar la devolucion'));
     } finally {
       setGuardando(false);
     }
@@ -81,21 +176,22 @@ export default function Historial() {
   const guardarAnulacion = async () => {
     if (!motivoAnulacion.trim() || !ventaSeleccionada) return;
     setAnulando(true);
+    let registrada = false;
     try {
       await anularVenta(ventaSeleccionada._id, motivoAnulacion.trim());
-      const res = await obtenerVentas({});
-      setVentas(res.data);
-      setVentaSeleccionada(res.data.find((venta) => venta._id === ventaSeleccionada._id) || null);
+      registrada = true;
       setDialogoAnulacion(false);
       setMotivoAnulacion('');
+      await actualizarVenta(ventaSeleccionada._id);
     } catch (err) {
-      alert(err?.response?.data?.error || 'No se pudo anular la venta');
+      alert(registrada ? 'Venta anulada, pero no se pudo actualizar el ticket. Vuelve a abrirlo.' :
+        (err?.response?.data?.error || 'No se pudo anular la venta'));
     } finally {
       setAnulando(false);
     }
   };
 
-  const agrupadas = filtradas.reduce((acc, v) => {
+  const agrupadas = ventas.reduce((acc, v) => {
     const fecha = new Date(v.fecha).toLocaleDateString('es-CL');
     acc[fecha] = acc[fecha] || [];
     acc[fecha].push(v);
@@ -114,8 +210,20 @@ export default function Historial() {
           onChange={e => setBusqueda(e.target.value)}
           sx={{ mb: 2 }}
         />
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 2 }}>
+          <TextField type="date" label="Desde" value={desde} onChange={(e) => setDesde(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }} fullWidth size="small" />
+          <TextField type="date" label="Hasta" value={hasta} onChange={(e) => setHasta(e.target.value)}
+            slotProps={{ inputLabel: { shrink: true } }} fullWidth size="small" />
+        </Stack>
+        {error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert>}
+        {cargando && <CircularProgress size={24} sx={{ mb: 1 }} />}
+        {!cargando && !error && ventas.length === 0 && (
+          <Typography color="text.secondary" sx={{ mb: 1 }}>No se encontraron tickets.</Typography>
+        )}
 
         <Paper
+          ref={listaRef}
           elevation={0}
           sx={{
             maxHeight: '75vh',
@@ -137,7 +245,7 @@ export default function Historial() {
                 {ventas.map((venta) => (
                   <ListItemButton
                     key={venta._id}
-                    onClick={() => setVentaSeleccionada(venta)}
+                    onClick={() => seleccionarVenta(venta._id)}
                     selected={ventaSeleccionada?._id === venta._id}
                   >
                     <Box>
@@ -157,7 +265,14 @@ export default function Historial() {
               </List>
             </Box>
           ))}
+          <Box ref={loadMoreRef} sx={{ height: 1 }} />
+          {cargandoMas && <CircularProgress size={22} sx={{ display: 'block', mx: 'auto', my: 1 }} />}
         </Paper>
+        {siguiente && (error || typeof IntersectionObserver === 'undefined') && (
+          <Button fullWidth variant="outlined" sx={{ mt: 1 }} onClick={cargarMas} disabled={cargandoMas}>
+            {error ? 'Reintentar carga' : 'Mostrar más tickets'}
+          </Button>
+        )}
       </Box>
 
       {/* Panel derecho: Detalle */}
@@ -212,6 +327,10 @@ export default function Historial() {
               </Paper>
             )}
           </Stack>
+        ) : cargandoDetalle ? (
+          <CircularProgress size={24} sx={{ mt: 4 }} />
+        ) : errorDetalle ? (
+          <Alert severity="error" sx={{ mt: 2 }}>{errorDetalle}</Alert>
         ) : (
           <Typography variant="body1" sx={{ mt: 4 }}>
             Selecciona un ticket para ver su detalle

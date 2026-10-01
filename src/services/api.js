@@ -191,6 +191,7 @@ export const clonarAgregados = (data) => API.post('/agregados/clonar', data);
 export const registrarVenta = (data) => API.post('/ventas', data);
 
 export const obtenerVentas = (params) => API.get('/ventas', { params });
+export const obtenerDetalleVenta = (ventaId) => API.get(`/ventas/detalle/${ventaId}`);
 
 export const registrarDevolucion = (ventaId, data) =>
   API.post(`/ventas/${ventaId}/devoluciones`, data);

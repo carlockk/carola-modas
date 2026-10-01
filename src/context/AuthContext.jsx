@@ -4,61 +4,53 @@ import { SESSION_EXPIRED_EVENT } from '../services/api';
 const AuthContext = createContext();
 export const useAuth = () => useContext(AuthContext);
 
-export function AuthProvider({ children }) {
-  const [usuario, setUsuario] = useState(null);
-  const [selectedLocal, setSelectedLocal] = useState(null);
-  const [sessionDeadline, setSessionDeadline] = useState(null);
+const decodeJwtExpMs = (token) => {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const payload = JSON.parse(atob(padded));
+    const exp = Number(payload?.exp);
+    if (!Number.isFinite(exp)) return null;
+    return exp * 1000;
+  } catch {
+    return null;
+  }
+};
 
-  const decodeJwtExpMs = (token) => {
-    if (!token || typeof token !== 'string') return null;
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    try {
-      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-      const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-      const payload = JSON.parse(atob(padded));
-      const exp = Number(payload?.exp);
-      if (!Number.isFinite(exp)) return null;
-      return exp * 1000;
-    } catch (_err) {
-      return null;
-    }
-  };
+const clearSessionStorage = () => {
+  localStorage.removeItem('usuario');
+  localStorage.removeItem('localSeleccionado');
+};
 
-  const clearSessionStorage = () => {
-    localStorage.removeItem('usuario');
-    localStorage.removeItem('localSeleccionado');
-  };
-
-  useEffect(() => {
+const readStoredSession = () => {
+  const emptySession = { usuario: null, selectedLocal: null, sessionDeadline: null };
+  try {
     const stored = localStorage.getItem('usuario');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (!parsed?.token) {
-          clearSessionStorage();
-          return;
-        }
-        const expMs = decodeJwtExpMs(parsed.token);
-        if (expMs && expMs <= Date.now()) {
-          clearSessionStorage();
-          return;
-        }
-        setUsuario(parsed);
-        setSessionDeadline(expMs || null);
-        if (parsed?.rol && parsed.rol !== 'superadmin') {
-          setSelectedLocal(parsed.local || null);
-        } else {
-          const storedLocal = localStorage.getItem('localSeleccionado');
-          if (storedLocal) {
-            setSelectedLocal(JSON.parse(storedLocal));
-          }
-        }
-      } catch (_err) {
-        clearSessionStorage();
-      }
+    if (!stored) return emptySession;
+    const usuario = JSON.parse(stored);
+    const sessionDeadline = decodeJwtExpMs(usuario?.token);
+    if (!usuario?.token || (sessionDeadline && sessionDeadline <= Date.now())) {
+      clearSessionStorage();
+      return emptySession;
     }
-  }, []);
+    const selectedLocal = usuario?.rol && usuario.rol !== 'superadmin'
+      ? usuario.local || null
+      : JSON.parse(localStorage.getItem('localSeleccionado') || 'null');
+    return { usuario, selectedLocal, sessionDeadline };
+  } catch {
+    clearSessionStorage();
+    return emptySession;
+  }
+};
+
+export function AuthProvider({ children }) {
+  const [initialSession] = useState(readStoredSession);
+  const [usuario, setUsuario] = useState(initialSession.usuario);
+  const [selectedLocal, setSelectedLocal] = useState(initialSession.selectedLocal);
+  const [sessionDeadline, setSessionDeadline] = useState(initialSession.sessionDeadline);
 
   const login = (data) => {
     setUsuario(data);

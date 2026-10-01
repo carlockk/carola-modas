@@ -45,6 +45,19 @@ const BASE_URL = FILES_BASE || (import.meta.env.VITE_BACKEND_URL || 'http://loca
 const MIN_STOCK_ALERT = 3;
 const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
 const DESKTOP_CART_WIDTH = 380;
+const PRODUCTOS_POR_BLOQUE = 48;
+
+const optimizarImagenPOS = (url) => {
+  const value = String(url || '');
+  if (!value.includes('res.cloudinary.com') || !value.includes('/upload/')) return value;
+  const [prefix, rest] = value.split('/upload/');
+  const partes = rest.split('/');
+  const primeraParte = partes[0] || '';
+  const tieneTransformacion =
+    primeraParte.includes(',') || /^(f_|q_|w_|h_|c_|g_|e_|dpr_|ar_)/.test(primeraParte);
+  const resto = /^v\d+/.test(primeraParte) || !tieneTransformacion ? partes : partes.slice(1);
+  return `${prefix}/upload/f_auto,q_auto:good,w_360,c_limit/${resto.join('/')}`;
+};
 
 const normalizeCategoryKey = (value) =>
   String(value || '')
@@ -182,6 +195,8 @@ export default function POS() {
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [notificacionesGuardado, setNotificacionesGuardado] = useState([]);
   const [loadingCatalogo, setLoadingCatalogo] = useState(true);
+  const [productosVisibles, setProductosVisibles] = useState(PRODUCTOS_POR_BLOQUE);
+  const cargarMasRef = useRef(null);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -586,6 +601,31 @@ export default function POS() {
 
     return grupos;
   }, [categorias, productosFiltrados]);
+  useEffect(() => {
+    setProductosVisibles(PRODUCTOS_POR_BLOQUE);
+  }, [busquedaLower, filtroCategoria, selectedLocal?._id]);
+
+  useEffect(() => {
+    const sentinel = cargarMasRef.current;
+    if (!sentinel || typeof IntersectionObserver === 'undefined' || productosVisibles >= productosFiltrados.length) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        setProductosVisibles((actual) => actual + PRODUCTOS_POR_BLOQUE);
+      }
+    }, { rootMargin: '500px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [productosFiltrados.length, productosVisibles]);
+
+  const gruposVisibles = useMemo(() => {
+    let restantes = productosVisibles;
+    return productosAgrupados.flatMap((grupo) => {
+      if (restantes <= 0) return [];
+      const productosGrupo = grupo.productos.slice(0, restantes);
+      restantes -= productosGrupo.length;
+      return [{ ...grupo, productos: productosGrupo }];
+    });
+  }, [productosAgrupados, productosVisibles]);
   const mostrarSkeletonCatalogo = loadingCatalogo && productos.length === 0;
 
   if (!cajaVerificada) {
@@ -789,7 +829,7 @@ export default function POS() {
                 <Skeleton variant="rounded" height={26} width="48%" sx={{ mt: 'auto' }} />
               </Box>
             ))
-          : productosAgrupados.map((grupo) => (
+          : gruposVisibles.map((grupo) => (
           <Fragment key={grupo.key}>
             <Box sx={{ gridColumn: '1 / -1', mt: 0.5 }}>
               <Typography
@@ -812,9 +852,10 @@ export default function POS() {
                 ? prod.variantes.slice(0, 2)
                 : [];
 
-              const imagenSrc = prod.imagen_url?.startsWith('/uploads')
+              const imagenOriginal = prod.imagen_url?.startsWith('/uploads')
                 ? `${BASE_URL}${prod.imagen_url}`
                 : prod.imagen_url || '';
+              const imagenSrc = optimizarImagenPOS(imagenOriginal);
 
               const hayVariantes = tieneVariantes(prod);
               const cantidadEnCarrito = cantidadesPorProducto.get(String(prod._id)) || 0;
@@ -1084,6 +1125,14 @@ export default function POS() {
           </Fragment>
         ))}
       </Box>
+
+      {!mostrarSkeletonCatalogo && productosVisibles < productosFiltrados.length && (
+        <Box ref={cargarMasRef} sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+          <Button onClick={() => setProductosVisibles((actual) => actual + PRODUCTOS_POR_BLOQUE)}>
+            Cargar más productos
+          </Button>
+        </Box>
+      )}
 
       <Button
         variant="contained"

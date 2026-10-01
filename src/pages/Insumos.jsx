@@ -479,6 +479,7 @@ export default function Insumos() {
   const [obsLeidosMap, setObsLeidosMap] = useState({});
   const [visibleCount, setVisibleCount] = useState(50);
   const tableContainerRef = useRef(null);
+  const loadMoreRef = useRef(null);
   const fetchInsumosSeqRef = useRef(0);
   const fetchCategoriasSeqRef = useRef(0);
   const obsReadStorageKey = useMemo(
@@ -1208,17 +1209,21 @@ export default function Insumos() {
     setVisibleCount(50);
   }, [busquedaNormalizada, soloBajoMinimo, tabCategoria, mostrarInsumosOcultos, insumos.length]);
 
-  useEffect(() => {
-    if (visibleCount >= insumosFiltrados.length) return;
-    const timer = setTimeout(() => {
-      setVisibleCount((prev) => Math.min(prev + 100, insumosFiltrados.length));
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [visibleCount, insumosFiltrados.length]);
-
   const insumosPaginados = useMemo(() => {
     return insumosFiltrados.slice(0, visibleCount);
   }, [insumosFiltrados, visibleCount]);
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel || typeof IntersectionObserver === 'undefined' || visibleCount >= insumosFiltrados.length) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        setVisibleCount((actual) => Math.min(actual + 50, insumosFiltrados.length));
+      }
+    }, { rootMargin: '400px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, insumosFiltrados.length]);
 
   const insumosStockBajo = useMemo(
     () =>
@@ -1710,9 +1715,16 @@ export default function Insumos() {
           }}
         >
           {insumosPaginados.length < insumosFiltrados.length ? (
-            <Typography variant="caption" color="text.secondary" sx={{ px: 1, pb: 1, display: 'block' }}>
-              Cargando filas automaticamente... {insumosPaginados.length} de {insumosFiltrados.length}.
-            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', sm: 'center' }} sx={{ px: 1, pb: 1 }}>
+              <Typography variant="caption" color="text.secondary">
+                Mostrando {insumosPaginados.length} de {insumosFiltrados.length} filas.
+              </Typography>
+              {isAdmin && (
+                <Button size="small" onClick={() => setVisibleCount(insumosFiltrados.length)}>
+                  Mostrar todas para ordenar
+                </Button>
+              )}
+            </Stack>
           ) : (
             <Typography variant="caption" color="text.secondary" sx={{ px: 1, pb: 1, display: 'block' }}>
               Todas las filas han sido cargadas.
@@ -1802,6 +1814,13 @@ export default function Insumos() {
             </Table>
           </DragDropContext>
         </TableContainer>
+        {insumosPaginados.length < insumosFiltrados.length && (
+          <Box ref={loadMoreRef} sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <Button variant="outlined" onClick={() => setVisibleCount((actual) => Math.min(actual + 50, insumosFiltrados.length))}>
+              Mostrar 50 más
+            </Button>
+          </Box>
+        )}
       </Paper>
 
       <InsumoDialog

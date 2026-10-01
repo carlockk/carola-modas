@@ -38,6 +38,7 @@ import InventoryIcon from '@mui/icons-material/Inventory2Outlined';
 import InventoryOutlinedIcon from '@mui/icons-material/InventoryOutlined';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSaleOutlined';
 import HistoryIcon from '@mui/icons-material/HistoryOutlined';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import StoreIcon from '@mui/icons-material/StoreOutlined';
 import StorefrontIcon from '@mui/icons-material/StorefrontOutlined';
 import PeopleAltIcon from '@mui/icons-material/PeopleAltOutlined';
@@ -460,6 +461,15 @@ export default function Sidebar({
             <ListItemText primary="Historial de tickets" />
           </ListItemButton>
         </ListItem>
+
+        {(usuario?.rol === 'admin' || usuario?.rol === 'superadmin') && (
+          <ListItem disablePadding>
+            <ListItemButton component={Link} to="/anulaciones" sx={{ px: 3, py: 1.5, color: '#d1d5db' }}>
+              <Box sx={{ mr: 2 }}><CancelOutlinedIcon /></Box>
+              <ListItemText primary="Anulaciones" />
+            </ListItemButton>
+          </ListItem>
+        )}
 
  {/* tickets abiertos */}
         <ListItem disablePadding>

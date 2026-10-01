@@ -126,6 +126,16 @@ export default function VistaTicket({ venta }) {
           {new Date(venta.fecha).toLocaleString()}
         </Typography>
 
+        {venta.estado === 'anulada' && (
+          <Box sx={{ border: '2px solid', borderColor: 'error.main', p: 1, my: 1 }}>
+            <Typography className="bold" fontSize="1.2rem">ANULADO</Typography>
+            <Typography fontSize="0.8rem">{venta.anulacion?.motivo}</Typography>
+            {venta.anulacion?.fecha && (
+              <Typography fontSize="0.8rem">{new Date(venta.anulacion.fecha).toLocaleString('es-CL')}</Typography>
+            )}
+          </Box>
+        )}
+
         <hr />
 
         {venta.productos.map((item, i) => (

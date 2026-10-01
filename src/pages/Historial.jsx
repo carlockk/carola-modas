@@ -3,12 +3,13 @@ import {
   Box, Typography, TextField, List, ListItemButton, Divider, Paper, Stack,
   Button, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Alert
 } from '@mui/material';
-import { obtenerVentas, registrarDevolucion } from '../services/api';
+import { anularVenta, obtenerVentas, registrarDevolucion } from '../services/api';
 import VistaTicket from '../components/VistaTicket';
 import { useAuth } from '../context/AuthContext';
 
 export default function Historial() {
-  const { selectedLocal } = useAuth();
+  const { selectedLocal, usuario } = useAuth();
+  const localId = selectedLocal?._id;
   const [ventas, setVentas] = useState([]);
   const [filtradas, setFiltradas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -16,12 +17,22 @@ export default function Historial() {
   const [dialogoDevolucion, setDialogoDevolucion] = useState(false);
   const [devolucion, setDevolucion] = useState({ monto: '', motivo: '', tipo_pago: 'Efectivo' });
   const [guardando, setGuardando] = useState(false);
+  const [dialogoAnulacion, setDialogoAnulacion] = useState(false);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('');
+  const [anulando, setAnulando] = useState(false);
+  const esAdmin = ['admin', 'superadmin'].includes(usuario?.rol);
 
   const totalDevuelto = (ventaSeleccionada?.devoluciones || [])
     .reduce((sum, item) => sum + (Number(item.monto) || 0), 0);
   const saldoDisponible = Math.max(0, Number(ventaSeleccionada?.total || 0) - totalDevuelto);
 
   const cargar = useCallback(async () => {
+    if (!localId) {
+      setVentas([]);
+      setFiltradas([]);
+      setVentaSeleccionada(null);
+      return;
+    }
     try {
       const res = await obtenerVentas({});
       setVentas(res.data);
@@ -29,7 +40,7 @@ export default function Historial() {
     } catch {
       alert('❌ Error al cargar historial');
     }
-  }, [selectedLocal?._id]);
+  }, [localId]);
 
   useEffect(() => {
     cargar();
@@ -64,6 +75,23 @@ export default function Historial() {
       alert(err?.response?.data?.error || 'No se pudo registrar la devolucion');
     } finally {
       setGuardando(false);
+    }
+  };
+
+  const guardarAnulacion = async () => {
+    if (!motivoAnulacion.trim() || !ventaSeleccionada) return;
+    setAnulando(true);
+    try {
+      await anularVenta(ventaSeleccionada._id, motivoAnulacion.trim());
+      const res = await obtenerVentas({});
+      setVentas(res.data);
+      setVentaSeleccionada(res.data.find((venta) => venta._id === ventaSeleccionada._id) || null);
+      setDialogoAnulacion(false);
+      setMotivoAnulacion('');
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo anular la venta');
+    } finally {
+      setAnulando(false);
     }
   };
 
@@ -115,6 +143,7 @@ export default function Historial() {
                     <Box>
                       <Typography variant="body1">
                         🧾 Ticket #{String(venta.numero_pedido).padStart(2, '0')}
+                        {venta.estado === 'anulada' && ' · ANULADO'}
                       </Typography>
                       <Typography variant="caption">
                         {new Date(venta.fecha).toLocaleTimeString()}
@@ -136,7 +165,24 @@ export default function Historial() {
         {ventaSeleccionada ? (
           <Stack spacing={2}>
             <VistaTicket venta={ventaSeleccionada} />
-            <Paper variant="outlined" sx={{ p: 2, maxWidth: 400, mx: 'auto', width: '100%' }}>
+            {esAdmin && ventaSeleccionada.estado !== 'anulada' &&
+              (!ventaSeleccionada.origen_cobro || ventaSeleccionada.origen_cobro === 'pos') && (
+              <Paper variant="outlined" sx={{ p: 2, maxWidth: 400, mx: 'auto', width: '100%' }}>
+                <Typography fontWeight={700}>Anulación interna</Typography>
+                <Typography variant="body2" sx={{ my: 1 }}>
+                  Solo para ventas de la caja actual, sin devoluciones. Repone el stock y excluye la venta de los totales.
+                </Typography>
+                <Button
+                  variant="outlined" color="error" fullWidth
+                  disabled={(ventaSeleccionada.devoluciones || []).length > 0}
+                  onClick={() => setDialogoAnulacion(true)}
+                >
+                  Anular venta
+                </Button>
+              </Paper>
+            )}
+            {ventaSeleccionada.estado !== 'anulada' && (
+              <Paper variant="outlined" sx={{ p: 2, maxWidth: 400, mx: 'auto', width: '100%' }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Typography fontWeight={700}>Devoluciones</Typography>
                 <Button
@@ -163,7 +209,8 @@ export default function Historial() {
                   </Typography>
                 </Box>
               ))}
-            </Paper>
+              </Paper>
+            )}
           </Stack>
         ) : (
           <Typography variant="body1" sx={{ mt: 4 }}>
@@ -203,6 +250,27 @@ export default function Historial() {
           <Button onClick={() => setDialogoDevolucion(false)}>Cancelar</Button>
           <Button variant="contained" onClick={guardarDevolucion} disabled={guardando || saldoDisponible <= 0}>
             {guardando ? 'Guardando...' : 'Confirmar devolucion'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={dialogoAnulacion} onClose={() => !anulando && setDialogoAnulacion(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Anular venta</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            El ticket quedará marcado ANULADO, los productos volverán a sus variantes y la venta saldrá de los totales de caja y reportes. La devolución del pago, si corresponde, se gestiona por separado.
+          </Alert>
+          <TextField
+            autoFocus fullWidth multiline minRows={3} label="Motivo de la anulación"
+            value={motivoAnulacion}
+            onChange={(e) => setMotivoAnulacion(e.target.value)}
+            inputProps={{ maxLength: 300 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogoAnulacion(false)} disabled={anulando}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={guardarAnulacion} disabled={anulando || !motivoAnulacion.trim()}>
+            {anulando ? 'Anulando...' : 'Confirmar anulación'}
           </Button>
         </DialogActions>
       </Dialog>

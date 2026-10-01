@@ -21,6 +21,7 @@ const Categorias = lazy(() => import('./pages/CrearCategoria'));
 const POS = lazy(() => import('./pages/POS'));
 const Ticket = lazy(() => import('./pages/Ticket'));
 const Historial = lazy(() => import('./pages/Historial'));
+const Anulaciones = lazy(() => import('./pages/Anulaciones'));
 const Caja = lazy(() => import('./pages/Caja'));
 const HistorialCajas = lazy(() => import('./pages/HistorialCajas'));
 const TicketCaja = lazy(() => import('./pages/TicketCaja'));
@@ -187,6 +188,7 @@ export default function App() {
             <Route path="/pos" element={usuarioGeneral ? <POS /> : <Navigate to={rutaInicio} />} />
             <Route path="/dashboard" element={usuarioGeneral ? <Dashboard /> : <Navigate to={rutaInicio} />} />
             <Route path="/historial" element={usuarioGeneral ? <Historial /> : <Navigate to={rutaInicio} />} />
+            <Route path="/anulaciones" element={esAdmin ? <Anulaciones /> : <Navigate to={rutaInicio} />} />
             <Route path="/caja" element={usuarioGeneral ? <Caja /> : <Navigate to={rutaInicio} />} />
             <Route
               path="/historial-cajas"

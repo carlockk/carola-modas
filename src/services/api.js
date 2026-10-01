@@ -195,6 +195,11 @@ export const obtenerVentas = (params) => API.get('/ventas', { params });
 export const registrarDevolucion = (ventaId, data) =>
   API.post(`/ventas/${ventaId}/devoluciones`, data);
 
+export const anularVenta = (ventaId, motivo) =>
+  API.post(`/ventas/${ventaId}/anular`, { motivo });
+
+export const obtenerAnulaciones = () => API.get('/ventas/anulaciones');
+
 export const obtenerDescuentos = (soloActivos = false) =>
   API.get('/descuentos', { params: soloActivos ? { activos: true } : {} });
 export const crearDescuento = (data) => API.post('/descuentos', data);
